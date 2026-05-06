@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mapa de Órganos Jurisdiccionales — Distrito Judicial de Junín</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --rojo:       #7b1a1a;
+      --rojo-hover: #a52525;
+      --rojo-click: #5a1010;
+      --gris-oscuro:#2c2c2c;
+      --gris-medio: #555555;
+      --gris-claro: #e8e8e8;
+      --blanco:     #ffffff;
+      --panel-w:    420px;
+    }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: var(--gris-oscuro);
+      color: var(--gris-oscuro);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--rojo);
+      color: var(--blanco);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 20px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,.45);
+      z-index: 1000;
+    }
+    header .escudo {
+      width: 44px;
+      height: 44px;
+      background: var(--blanco);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1rem; font-weight: 700; line-height: 1.3; }
+    header p  { font-size: .72rem; opacity: .85; }
+
+    /* ── Main layout ── */
+    .layout {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ── Map ── */
+    #map {
+      flex: 1;
+      transition: margin-right .35s ease;
+    }
+    .panel-open #map { margin-right: var(--panel-w); }
+
+    /* ── Side panel ── */
+    #panel {
+      position: absolute;
+      top: 0; right: 0;
+      width: var(--panel-w);
+      height: 100%;
+      background: var(--blanco);
+      box-shadow: -4px 0 20px rgba(0,0,0,.3);
+      transform: translateX(100%);
+      transition: transform .35s ease;
+      display: flex;
+      flex-direction: column;
+      z-index: 800;
+      overflow: hidden;
+    }
+    #panel.visible { transform: translateX(0); }
+
+    .panel-header {
+      background: var(--rojo);
+      color: var(--blanco);
+      padding: 16px 18px;
+      flex-shrink: 0;
+    }
+    .panel-header .province-name {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+    .panel-header .panel-sub {
+      font-size: .72rem;
+      opacity: .8;
+      margin-top: 2px;
+    }
+
+    .panel-stats {
+      display: flex;
+      gap: 1px;
+      background: #ddd;
+      flex-shrink: 0;
+    }
+    .stat-box {
+      flex: 1;
+      background: var(--gris-claro);
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .stat-box .val {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--rojo);
+    }
+    .stat-box .lbl {
+      font-size: .65rem;
+      color: var(--gris-medio);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 0;
+    }
+    .panel-body::-webkit-scrollbar { width: 6px; }
+    .panel-body::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+    .organ-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 9px 18px;
+      border-bottom: 1px solid #f0f0f0;
+      transition: background .15s;
+    }
+    .organ-item:hover { background: #fdf5f5; }
+    .organ-num {
+      min-width: 22px;
+      font-size: .68rem;
+      font-weight: 700;
+      color: var(--rojo);
+      margin-top: 1px;
+    }
+    .organ-info { flex: 1; }
+    .organ-name {
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--gris-oscuro);
+      line-height: 1.35;
+    }
+    .organ-badges {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .badge {
+      font-size: .65rem;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .badge-h { background: #dbeafe; color: #1e40af; }
+    .badge-m { background: #fce7f3; color: #9d174d; }
+    .badge-t { background: #f0fdf4; color: #166534; }
+
+    .btn-close {
+      position: absolute;
+      top: 12px; right: 14px;
+      background: rgba(255,255,255,.2);
+      border: none;
+      color: white;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .2s;
+    }
+    .btn-close:hover { background: rgba(255,255,255,.35); }
+
+    /* ── Leaflet overrides ── */
+    .leaflet-container { background: #d4e3f0; }
+    .leaflet-popup-content-wrapper {
+      border-radius: 6px;
+      box-shadow: 0 3px 14px rgba(0,0,0,.3);
+    }
+
+    /* ── Tooltip custom ── */
+    .map-tooltip {
+      background: var(--rojo);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: .8rem;
+      padding: 4px 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.35);
+    }
+    .map-tooltip::before { display: none; }
+
+    /* ── Loading overlay ── */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: rgba(44,44,44,.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      color: white;
+      font-size: 1.1rem;
+      letter-spacing: 1px;
+    }
+    #loading.hidden { display: none; }
+
+    @media (max-width: 640px) {
+      :root { --panel-w: 100vw; }
+      .panel-open #map { margin-right: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="loading">Cargando mapa…</div>
+
+<header>
+  <div class="escudo">⚖️</div>
+  <div>
+    <h1>Mapa de Órganos Jurisdiccionales</h1>
+    <p>Corte Superior de Justicia de Junín — Distrito Judicial de Junín</p>
+  </div>
+</header>
+
+<div class="layout" id="layout">
+  <div id="map"></div>
+
+  <div id="panel">
+    <button class="btn-close" id="btnClose" title="Cerrar">✕</button>
+    <div class="panel-header">
+      <div class="province-name" id="panelTitle">—</div>
+      <div class="panel-sub" id="panelSub">Órganos jurisdiccionales</div>
+    </div>
+    <div class="panel-stats">
+      <div class="stat-box">
+        <div class="val" id="statOrganos">0</div>
+        <div class="lbl">Órganos</div>
+      </div>
+      <div class="stat-box">
+        <div class="val" id="statHombres">0</div>
+        <div class="lbl">Hombres</div>
+      </div>
+      <div class="stat-box">
+        <div class="val" id="statMujeres">0</div>
+        <div class="lbl">Mujeres</div>
+      </div>
+      <div class="stat-box">
+        <div class="val" id="statTotal">0</div>
+        <div class="lbl">Total</div>
+      </div>
+    </div>
+    <div class="panel-body" id="panelBody"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════════════
+//  DATOS: 101 ÓRGANOS JURISDICCIONALES
+//  Agrupados por provincia (clave = NOMBPROV del GeoJSON)
+// ══════════════════════════════════════════════════════════════════
+const ORGANOS = {
+  HUANCAYO: [
+    { nombre: "1° JUZGADO DE PAZ LETRADO DE HUANCAYO",                                                                                              h: 3, m: 4 },
+    { nombre: "2° JUZGADO DE PAZ LETRADO DE HUANCAYO",                                                                                              h: 2, m: 5 },
+    { nombre: "3° JUZGADO DE PAZ LETRADO DE HUANCAYO",                                                                                              h: 4, m: 3 },
+    { nombre: "JUZGADO DE PAZ LETRADO LABORAL DE HUANCAYO",                                                                                         h: 3, m: 4 },
+    { nombre: "1° JUZGADO DE PAZ LETRADO DE EL TAMBO (FAMILIA)",                                                                                    h: 2, m: 4 },
+    { nombre: "2° JUZGADO DE PAZ LETRADO DE EL TAMBO (FAMILIA)",                                                                                    h: 3, m: 3 },
+    { nombre: "3° JUZGADO DE PAZ LETRADO CIVIL PERMANENTE DE EL TAMBO",                                                                             h: 4, m: 2 },
+    { nombre: "4° JUZGADO DE PAZ LETRADO PENAL PERMANENTE DE EL TAMBO",                                                                             h: 3, m: 4 },
+    { nombre: "1° JUZGADO DE PAZ LETRADO DE CHILCA",                                                                                                h: 2, m: 3 },
+    { nombre: "2° JUZGADO DE PAZ LETRADO DE CHILCA",                                                                                                h: 3, m: 2 },
+    { nombre: "JUZGADO DE PAZ LETRADO DE SAN AGUSTÍN DE CAJAS",                                                                                     h: 2, m: 3 },
+    { nombre: "1° SALA LABORAL DE HUANCAYO",                                                                                                        h: 5, m: 7 },
+    { nombre: "2° SALA LABORAL DE HUANCAYO",                                                                                                        h: 4, m: 8 },
+    { nombre: "SALA CIVIL DE HUANCAYO",                                                                                                             h: 6, m: 6 },
+    { nombre: "1° SALA PENAL DE APELACIONES DE HUANCAYO",                                                                                          h: 7, m: 5 },
+    { nombre: "2° SALA PENAL DE APELACIONES DE HUANCAYO",                                                                                          h: 6, m: 6 },
+    { nombre: "SALA PENAL DE APELACIONES TRANSITORIA ESPECIALIZADA EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO",                           h: 5, m: 7 },
+    { nombre: "1° JUZGADO CIVIL DE HUANCAYO",                                                                                                      h: 3, m: 5 },
+    { nombre: "2° JUZGADO CIVIL DE HUANCAYO",                                                                                                      h: 4, m: 4 },
+    { nombre: "3° JUZGADO CIVIL DE HUANCAYO",                                                                                                      h: 5, m: 3 },
+    { nombre: "4° JUZGADO CIVIL DE HUANCAYO",                                                                                                      h: 3, m: 5 },
+    { nombre: "5° JUZGADO CIVIL DE HUANCAYO",                                                                                                      h: 4, m: 4 },
+    { nombre: "JUZGADO CONSTITUCIONAL DE HUANCAYO",                                                                                                h: 4, m: 5 },
+    { nombre: "JUZGADO COMERCIAL DE HUANCAYO",                                                                                                     h: 3, m: 5 },
+    { nombre: "1° JUZGADO DE TRABAJO DE HUANCAYO",                                                                                                 h: 3, m: 4 },
+    { nombre: "2° JUZGADO DE TRABAJO DE HUANCAYO",                                                                                                 h: 4, m: 3 },
+    { nombre: "3° JUZGADO DE TRABAJO DE HUANCAYO",                                                                                                 h: 3, m: 4 },
+    { nombre: "4° JUZGADO DE TRABAJO DE HUANCAYO",                                                                                                 h: 5, m: 2 },
+    { nombre: "JUZGADO DE TRABAJO TRANSITORIO DE HUANCAYO",                                                                                        h: 2, m: 5 },
+    { nombre: "1° JUZGADO DE FAMILIA DE HUANCAYO",                                                                                                 h: 2, m: 5 },
+    { nombre: "2° JUZGADO DE FAMILIA DE HUANCAYO",                                                                                                 h: 3, m: 4 },
+    { nombre: "3° JUZGADO DE FAMILIA DE HUANCAYO",                                                                                                 h: 2, m: 5 },
+    { nombre: "4° JUZGADO DE FAMILIA DE HUANCAYO",                                                                                                 h: 4, m: 3 },
+    { nombre: "5° JUZGADO DE FAMILIA SUBESPECIALIDAD EN VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR",                           h: 1, m: 6 },
+    { nombre: "6° JUZGADO DE FAMILIA SUBESPECIALIDAD EN VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR",                           h: 2, m: 5 },
+    { nombre: "7° JUZGADO DE FAMILIA SUBESPECIALIDAD EN VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR",                           h: 1, m: 6 },
+    { nombre: "8° JUZGADO DE FAMILIA SUBESPECIALIDAD EN VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR",                           h: 2, m: 5 },
+    { nombre: "9° JUZGADO DE FAMILIA SUBESPECIALIDAD EN VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR",                           h: 1, m: 6 },
+    { nombre: "10° JUZGADO DE FAMILIA SUBESPECIALIDAD EN VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR",                          h: 2, m: 5 },
+    { nombre: "1° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. INMEDIATOS)",                                                                      h: 4, m: 3 },
+    { nombre: "2° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. COMUNES)",                                                                         h: 3, m: 4 },
+    { nombre: "3° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. INMEDIATOS)",                                                                      h: 4, m: 3 },
+    { nombre: "4° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. COMUNES)",                                                                         h: 3, m: 4 },
+    { nombre: "5° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO",                     h: 4, m: 4 },
+    { nombre: "6° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO",                     h: 5, m: 3 },
+    { nombre: "1° JUZGADO PENAL UNIPERSONAL SUBESPECIALIZADO EN DELITOS ASOCIADOS A LA VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR DE HUANCAYO", h: 2, m: 5 },
+    { nombre: "2° JUZGADO PENAL UNIPERSONAL SUBESPECIALIZADO EN DELITOS ASOCIADOS A LA VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR DE HUANCAYO", h: 3, m: 4 },
+    { nombre: "3° JUZGADO PENAL UNIPERSONAL SUBESPECIALIZADO EN DELITOS ASOCIADOS A LA VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR DE HUANCAYO", h: 2, m: 5 },
+    { nombre: "1° JUZGADO PENAL COLEGIADO TRANSITORIO SUBESPECIALIZADO EN DELITOS ASOCIADOS A LA VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR DE HUANCAYO", h: 4, m: 5 },
+    { nombre: "2° JUZGADO PENAL COLEGIADO TRANSITORIO SUBESPECIALIZADO EN DELITOS ASOCIADOS A LA VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR DE HUANCAYO", h: 5, m: 4 },
+    { nombre: "JUZGADO PENAL COLEGIADO DE HUANCAYO",                                                                                              h: 5, m: 4 },
+    { nombre: "1° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)",                                                             h: 3, m: 4 },
+    { nombre: "2° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)",                                                             h: 4, m: 3 },
+    { nombre: "3° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (FLAGRANCIA / PROC. INMEDIATOS)",                                             h: 3, m: 4 },
+    { nombre: "4° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (FLAGRANCIA / PROC. INMEDIATOS)",                                             h: 4, m: 3 },
+    { nombre: "5° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO",       h: 4, m: 4 },
+    { nombre: "6° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)",                                                             h: 3, m: 5 },
+    { nombre: "8° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO",       h: 5, m: 3 },
+    { nombre: "1° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUBESPECIALIZADO EN DELITOS ASOCIADOS A LA VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR DE HUANCAYO", h: 2, m: 5 },
+    { nombre: "2° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUBESPECIALIZADO EN DELITOS ASOCIADOS A LA VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR DE HUANCAYO", h: 3, m: 4 },
+    { nombre: "3° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUBESPECIALIZADO EN DELITOS ASOCIADOS A LA VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR DE HUANCAYO", h: 2, m: 5 },
+    { nombre: "JUZGADO ESPECIALIZADO EN EXTINCIÓN DE DOMINIO",                                                                                     h: 4, m: 4 },
+  ],
+
+  TARMA: [
+    { nombre: "1° JUZGADO DE PAZ LETRADO DE TARMA",                                                                                               h: 2, m: 4 },
+    { nombre: "SALA MIXTA DE TARMA",                                                                                                               h: 5, m: 6 },
+    { nombre: "JUZGADO CIVIL DE TARMA",                                                                                                            h: 3, m: 4 },
+    { nombre: "JUZGADO DE FAMILIA DE TARMA SUBESPECIALIDAD EN VIOLENCIA CONTRA LAS MUJERES E INTEGRANTES DEL GRUPO FAMILIAR",                     h: 2, m: 5 },
+    { nombre: "1° JUZGADO PENAL UNIPERSONAL DE TARMA (PROC. INMEDIATOS / PROC. COMUNES)",                                                         h: 4, m: 3 },
+    { nombre: "2° JUZGADO PENAL UNIPERSONAL DE TARMA (PROC. INMEDIATOS / PROC. COMUNES)",                                                         h: 3, m: 4 },
+    { nombre: "3° JUZGADO PENAL UNIPERSONAL DE TARMA (PROC. INMEDIATOS / PROC. COMUNES)",                                                         h: 4, m: 3 },
+    { nombre: "1° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE TARMA (PROC. COMUNES)",                                                                h: 3, m: 4 },
+    { nombre: "2° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE TARMA (FLAGRANCIA / PROC. INMEDIATOS)",                                                h: 4, m: 3 },
+  ],
+
+  JAUJA: [
+    { nombre: "JUZGADO DE PAZ LETRADO DE JAUJA",                                                                                                  h: 2, m: 3 },
+    { nombre: "JUZGADO CIVIL DE JAUJA",                                                                                                           h: 3, m: 4 },
+    { nombre: "JUZGADO DE FAMILIA DE JAUJA",                                                                                                      h: 2, m: 5 },
+    { nombre: "1° JUZGADO PENAL UNIPERSONAL DE JAUJA (PROC. INMEDIATOS / PROC. COMUNES)",                                                         h: 3, m: 4 },
+    { nombre: "2° JUZGADO PENAL UNIPERSONAL DE JAUJA (PROC. INMEDIATOS / PROC. COMUNES)",                                                         h: 4, m: 3 },
+    { nombre: "1° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE JAUJA (PROC. INMEDIATOS / PROC. COMUNES)",                                             h: 3, m: 4 },
+    { nombre: "2° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE JAUJA (PROC. INMEDIATOS / PROC. COMUNES)",                                             h: 2, m: 5 },
+  ],
+
+  CHUPACA: [
+    { nombre: "JUZGADO DE PAZ LETRADO DE CHUPACA",                                                                                                h: 2, m: 3 },
+    { nombre: "JUZGADO CIVIL DE CHUPACA",                                                                                                         h: 3, m: 3 },
+    { nombre: "JUZGADO CIVIL MIXTO TRANSITORIO DE CHUPACA",                                                                                       h: 3, m: 4 },
+    { nombre: "JUZGADO PENAL UNIPERSONAL DE CHUPACA (PROC. INMEDIATOS / PROC. COMUNES)",                                                          h: 3, m: 3 },
+    { nombre: "JUZGADO DE INVESTIGACIÓN PREPARATORIA DE CHUPACA (PROC. INMEDIATOS / PROC. COMUNES)",                                              h: 2, m: 4 },
+  ],
+
+  CONCEPCION: [
+    { nombre: "JUZGADO DE PAZ LETRADO DE CONCEPCIÓN",                                                                                             h: 2, m: 3 },
+    { nombre: "JUZGADO CIVIL DE CONCEPCIÓN",                                                                                                      h: 3, m: 3 },
+    { nombre: "JUZGADO PENAL UNIPERSONAL DE CONCEPCIÓN (PROC. INMEDIATOS / PROC. COMUNES)",                                                       h: 3, m: 3 },
+    { nombre: "JUZGADO DE INVESTIGACIÓN PREPARATORIA DE CONCEPCIÓN (PROC. INMEDIATOS / PROC. COMUNES)",                                           h: 2, m: 4 },
+  ],
+
+  YAULI: [
+    { nombre: "JUZGADO DE PAZ LETRADO DE LA OROYA",                                                                                               h: 2, m: 3 },
+    { nombre: "JUZGADO CIVIL DE LA OROYA",                                                                                                        h: 3, m: 4 },
+    { nombre: "JUZGADO PENAL UNIPERSONAL DE LA OROYA (PROC. INMEDIATOS / PROC. COMUNES)",                                                         h: 4, m: 3 },
+    { nombre: "JUZGADO DE INVESTIGACIÓN PREPARATORIA DE LA OROYA (PROC. INMEDIATOS / PROC. COMUNES)",                                             h: 3, m: 4 },
+  ],
+
+  JUNIN: [
+    { nombre: "JUZGADO DE PAZ LETRADO DE JUNÍN",                                                                                                  h: 2, m: 3 },
+    { nombre: "JUZGADO CIVIL DE JUNÍN",                                                                                                           h: 3, m: 3 },
+    { nombre: "JUZGADO PENAL UNIPERSONAL DE JUNÍN (PROC. INMEDIATOS / PROC. COMUNES)",                                                            h: 3, m: 4 },
+    { nombre: "JUZGADO DE INVESTIGACIÓN PREPARATORIA DE JUNÍN (PROC. INMEDIATOS / PROC. COMUNES)",                                                h: 2, m: 4 },
+  ],
+
+  TAYACAJA: [
+    { nombre: "JUZGADO DE PAZ LETRADO DE PAMPAS",                                                                                                 h: 2, m: 3 },
+    { nombre: "JUZGADO DE PAZ LETRADO DE ACOBAMBA",                                                                                               h: 2, m: 2 },
+    { nombre: "JUZGADO DE PAZ LETRADO DE SURCUBAMBA",                                                                                             h: 1, m: 3 },
+    { nombre: "JUZGADO CIVIL DE PAMPAS",                                                                                                          h: 3, m: 3 },
+    { nombre: "JUZGADO PENAL UNIPERSONAL DE PAMPAS (PROC. INMEDIATOS / PROC. COMUNES)",                                                           h: 3, m: 3 },
+    { nombre: "JUZGADO DE INVESTIGACIÓN PREPARATORIA DE PAMPAS (PROC. INMEDIATOS / PROC. COMUNES)",                                               h: 2, m: 4 },
+  ],
+};
+
+// Provincias del Distrito Judicial de Junín (clave = NOMBPROV)
+const PROVINCIAS_DJ = new Set([
+  'HUANCAYO','TARMA','JAUJA','CHUPACA','CONCEPCION','YAULI','JUNIN','TAYACAJA'
+]);
+
+// Nombres legibles para el panel
+const NOMBRES_PROV = {
+  HUANCAYO:  'Provincia de Huancayo',
+  TARMA:     'Provincia de Tarma',
+  JAUJA:     'Provincia de Jauja',
+  CHUPACA:   'Provincia de Chupaca',
+  CONCEPCION:'Provincia de Concepción',
+  YAULI:     'Provincia de Yauli',
+  JUNIN:     'Provincia de Junín',
+  TAYACAJA:  'Provincia de Tayacaja',
+};
+
+// ══════════════════════════════════════════════════════════════════
+//  MAPA
+// ══════════════════════════════════════════════════════════════════
+const map = L.map('map', { zoomControl: true, attributionControl: true });
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© <a href="https://carto.com/">CARTO</a> | GeoJSON: IGN Perú',
+  maxZoom: 13,
+  subdomains: 'abcd',
+}).addTo(map);
+
+// Estilos GeoJSON
+const STYLE_DEFAULT  = { color: '#7b1a1a', weight: 1.5, fillColor: '#c0392b', fillOpacity: 0.35 };
+const STYLE_HOVER    = { color: '#7b1a1a', weight: 2.5, fillColor: '#e74c3c', fillOpacity: 0.55 };
+const STYLE_SELECTED = { color: '#4a0e0e', weight: 2.5, fillColor: '#7b1a1a', fillOpacity: 0.65 };
+
+let selectedLayer = null;
+let geojsonLayer  = null;
+
+function styleFor(layer) {
+  return layer === selectedLayer ? STYLE_SELECTED : STYLE_DEFAULT;
+}
+
+function onEachFeature(feature, layer) {
+  const provKey = feature.properties.NOMBPROV;
+
+  layer.on({
+    mouseover(e) {
+      if (e.target !== selectedLayer)
+        e.target.setStyle(STYLE_HOVER);
+      e.target.bringToFront();
+    },
+    mouseout(e) {
+      if (e.target !== selectedLayer)
+        e.target.setStyle(STYLE_DEFAULT);
+    },
+    click(e) {
+      if (selectedLayer && selectedLayer !== e.target)
+        selectedLayer.setStyle(STYLE_DEFAULT);
+      selectedLayer = e.target;
+      e.target.setStyle(STYLE_SELECTED);
+      openPanel(provKey);
+    },
+  });
+
+  layer.bindTooltip(
+    `<strong>${NOMBRES_PROV[provKey] || provKey}</strong>`,
+    { className: 'map-tooltip', sticky: true, direction: 'top', offset: [0, -4] }
+  );
+}
+
+// ── Panel ────────────────────────────────────────────────────────
+const panel    = document.getElementById('panel');
+const layout   = document.getElementById('layout');
+const btnClose = document.getElementById('btnClose');
+
+btnClose.addEventListener('click', closePanel);
+
+function openPanel(provKey) {
+  const organos = ORGANOS[provKey] || [];
+  const totalH  = organos.reduce((s, o) => s + o.h, 0);
+  const totalM  = organos.reduce((s, o) => s + o.m, 0);
+
+  document.getElementById('panelTitle').textContent = NOMBRES_PROV[provKey] || provKey;
+  document.getElementById('panelSub').textContent   =
+    `Distrito Judicial de Junín`;
+  document.getElementById('statOrganos').textContent = organos.length;
+  document.getElementById('statHombres').textContent = totalH;
+  document.getElementById('statMujeres').textContent = totalM;
+  document.getElementById('statTotal').textContent   = totalH + totalM;
+
+  const body = document.getElementById('panelBody');
+  body.innerHTML = organos.length === 0
+    ? '<p style="padding:16px;color:#999;font-size:.85rem;">Sin órganos registrados.</p>'
+    : organos.map((o, i) => `
+        <div class="organ-item">
+          <span class="organ-num">${i + 1}</span>
+          <div class="organ-info">
+            <div class="organ-name">${o.nombre}</div>
+            <div class="organ-badges">
+              <span class="badge badge-h">♂ ${o.h}</span>
+              <span class="badge badge-m">♀ ${o.m}</span>
+              <span class="badge badge-t">Total: ${o.h + o.m}</span>
+            </div>
+          </div>
+        </div>`).join('');
+
+  panel.classList.add('visible');
+  layout.classList.add('panel-open');
+  map.invalidateSize();
+}
+
+function closePanel() {
+  panel.classList.remove('visible');
+  layout.classList.remove('panel-open');
+  if (selectedLayer) {
+    selectedLayer.setStyle(STYLE_DEFAULT);
+    selectedLayer = null;
+  }
+  map.invalidateSize();
+}
+
+// ── Cargar GeoJSON ───────────────────────────────────────────────
+fetch('peru_provincial_simple.geojson')
+  .then(r => {
+    if (!r.ok) throw new Error('No se pudo cargar el GeoJSON');
+    return r.json();
+  })
+  .then(data => {
+    const filtered = {
+      type: 'FeatureCollection',
+      features: data.features.filter(
+        f => PROVINCIAS_DJ.has(f.properties.NOMBPROV)
+      ),
+    };
+
+    geojsonLayer = L.geoJSON(filtered, {
+      style: STYLE_DEFAULT,
+      onEachFeature,
+    }).addTo(map);
+
+    map.fitBounds(geojsonLayer.getBounds(), { padding: [30, 30] });
+    document.getElementById('loading').classList.add('hidden');
+  })
+  .catch(err => {
+    document.getElementById('loading').innerHTML =
+      `<div style="text-align:center;padding:20px;">
+        <div style="font-size:2rem;margin-bottom:12px;">⚠️</div>
+        <div style="font-size:1rem;margin-bottom:8px;">${err.message}</div>
+        <div style="font-size:.8rem;opacity:.7;">
+          Ejecuta un servidor local en la carpeta del proyecto:<br/>
+          <code style="background:rgba(255,255,255,.15);padding:4px 10px;border-radius:4px;display:inline-block;margin-top:6px;">
+            python3 -m http.server 8080
+          </code><br/>
+          Luego abre: <strong>http://localhost:8080</strong>
+        </div>
+      </div>`;
+  });
+</script>
+</body>
+</html>
