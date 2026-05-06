@@ -136,12 +136,19 @@ BASE = os.path.dirname(__file__)
 EXCEL_PATH = os.path.join(BASE, "DASHBOARD INGE.xlsx")
 
 @st.cache_data
-def load_data(_excel_mtime):
+def load_data(_excel_mtime, _excel_size):
     xls = pd.ExcelFile(EXCEL_PATH)
     cp  = xls.parse("Carga Procesal")
     cp.columns = ["Año","Especialidad","Ingresos","CargaProcesal","Resueltos"]
     cp["Especialidad"] = cp["Especialidad"].str.title()
     cp["Especialidad"] = cp["Especialidad"].apply(lambda x: "Extinción Dominio" if "Extinci" in str(x) else x)
+    for _col in ["Ingresos", "CargaProcesal", "Resueltos"]:
+        cp[_col] = pd.to_numeric(
+            cp[_col].astype(str).str.replace(",", "", regex=False).str.strip(),
+            errors="coerce"
+        ).fillna(0).astype(int)
+    cp["Año"] = pd.to_numeric(cp["Año"], errors="coerce").dropna().astype(int)
+    cp = cp.dropna(subset=["Año"])
 
     pob = xls.parse("Poblacion_Data", skiprows=1)
     pob.columns = ["Provincia","Año","TipoAnio","Varones","Mujeres","Total","PctV","PctM","TasaCrec"]
@@ -244,7 +251,14 @@ def load_data(_excel_mtime):
     return cp, pob, dp, rp, aud, snej
 
 excel_mtime = os.path.getmtime(EXCEL_PATH) if os.path.exists(EXCEL_PATH) else 0
-cp, pob, dp, rp, aud, snej = load_data(excel_mtime)
+excel_size  = os.path.getsize(EXCEL_PATH)  if os.path.exists(EXCEL_PATH) else 0
+cp, pob, dp, rp, aud, snej = load_data(excel_mtime, excel_size)
+
+with st.sidebar:
+    st.markdown("### 🔄 Datos")
+    if st.button("Recargar Excel", use_container_width=True, type="primary"):
+        st.cache_data.clear()
+        st.rerun()
 
 import base64
 
@@ -354,6 +368,47 @@ with T_CAR:
         unsafe_allow_html=True
     )
 
+    cp_resumen = (
+        cp.groupby("Año", as_index=False)[["Ingresos", "CargaProcesal", "Resueltos"]].sum()
+        .rename(columns={"CargaProcesal": "Carga Procesal"})
+    )
+    cp_resumen_long = cp_resumen.melt(
+        id_vars="Año",
+        value_vars=["Ingresos", "Carga Procesal", "Resueltos"],
+        var_name="Indicador",
+        value_name="Cantidad"
+    )
+    fig_resumen_cp = px.bar(
+        cp_resumen_long,
+        x="Año",
+        y="Cantidad",
+        color="Indicador",
+        barmode="group",
+        title="<b>Resumen Anual: Ingresos, Carga Procesal y Resueltos</b>",
+        color_discrete_map={
+            "Ingresos": "#1f77b4",
+            "Carga Procesal": "#ff7f0e",
+            "Resueltos": "#2ca02c",
+        },
+        text=cp_resumen_long["Cantidad"].apply(lambda v: f"{v:,.0f}"),
+    )
+    fig_resumen_cp.update_traces(
+        textposition="outside",
+        textfont=dict(size=14, color="#333333"),
+        cliponaxis=False,
+    )
+    fig_resumen_cp.update_layout(
+        template="custom_theme",
+        legend_title="",
+        height=520,
+        title_font_size=16,
+        xaxis=dict(title="", tickfont=dict(size=14)),
+        yaxis=dict(title="", tickformat=",", tickfont=dict(size=14)),
+        uniformtext_minsize=8,
+        uniformtext_mode="hide",
+    )
+    st.plotly_chart(fig_resumen_cp, width='stretch', theme=None)
+
     ESP_COLORS = {
         "Civil":             "#00ACC1",
         "Constitucional":    "#1565C0",
@@ -421,20 +476,20 @@ with T_CAR:
     st.markdown('<div class="section-title" style="color: #8B1A2B; border-left-color: #8B1A2B;">⚠️ Alerta: Situación de Carga Procesal Proyectada a Diciembre 2026</div>', unsafe_allow_html=True)
     
     alert_rows = [
-        ("SALA CIVIL DE HUANCAYO", 2380, 3049, 28.1),
-        ("2° JUZGADO DE FAMILIA DE HUANCAYO", 850, 1152, 35.5),
-        ("1° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. INMEDIATOS)", 1102, 2071, 88.0),
-        ("2° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. COMUNES)", 549, 1353, 146.4),
-        ("3° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. INMEDIATOS)", 1102, 1514, 37.4),
-        ("4° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. COMUNES)", 549, 1347, 145.2),
-        ("5° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO", 88, 265, 199.4),
-        ("6° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO", 88, 294, 232.4),
-        ("1° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)", 811, 1256, 54.9),
-        ("2° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)", 811, 1317, 62.4),
-        ("5° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO", 190, 339, 78.1),
-        ("6° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)", 811, 1255, 54.8),
-        ("8° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO", 190, 320, 68.2),
-        ("JUZGADO DE INVESTIGACIÓN PREPARATORIA DE CHUPACA (PROC. INMEDIATOS) (PROC. COMUNES)", 811, 1069, 31.8),
+        ("SALA CIVIL DE HUANCAYO",                                                                                              2380, 3049,  28.1),
+        ("1° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. INMEDIATOS)",                                                        1100, 2069,  88.1),
+        ("3° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. INMEDIATOS)",                                                        1100, 1512,  37.5),
+        ("2° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. COMUNES)",                                                            550, 1354, 146.2),
+        ("4° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. COMUNES)",                                                            550, 1348, 145.1),
+        ("2° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)",                                                810, 1316,  62.5),
+        ("1° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)",                                                810, 1255,  54.9),
+        ("6° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)",                                                810, 1254,  54.8),
+        ("2° JUZGADO DE FAMILIA DE HUANCAYO",                                                                                    850, 1152,  35.5),
+        ("JUZGADO DE INVESTIGACIÓN PREPARATORIA DE CHUPACA (PROC. INMEDIATOS) (PROC. COMUNES)",                                 810, 1068,  31.9),
+        ("5° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO", 180, 329,  82.8),
+        ("8° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO", 180, 310,  72.2),
+        ("6° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO",         90,  296, 228.9),
+        ("5° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO",         90,  267, 196.7),
     ]
     df_alert = pd.DataFrame(
         alert_rows,
@@ -462,7 +517,7 @@ with T_CAR:
         </div>
         ''', unsafe_allow_html=True)
 
-    df_alert_plot = df_alert.sort_values("SOBRECARGA", ascending=False).copy()
+    df_alert_plot = df_alert.copy()
     fig_alert = go.Figure()
     fig_alert.add_trace(go.Bar(
         y=df_alert_plot["ÓRGANO_ABREV"],
@@ -500,11 +555,15 @@ with T_CAR:
         title="<b>Órganos en Sobrecarga: Carga Máxima vs Proyectada (Dic. 2026)</b>",
         barmode="stack",
         xaxis=dict(title="Expedientes", tickformat=",.0f", title_font=dict(size=16), tickfont=dict(size=13)),
-        yaxis=dict(title="", tickfont=dict(size=12)),
+        yaxis=dict(
+            title="",
+            tickfont=dict(size=12),
+            categoryorder="array",
+            categoryarray=df_alert_plot["ÓRGANO_ABREV"].tolist()[::-1],
+        ),
         legend=dict(orientation="h", y=1.0, x=0, yanchor="bottom", font=dict(size=13)),
         margin=dict(l=10, r=30, t=95, b=10)
     )
-    fig_alert.update_yaxes(autorange=True)
     st.plotly_chart(fig_alert, width='stretch', theme=None)
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -994,6 +1053,7 @@ with T_RES:
                             if default_prov in list(dp["Provincia"].dropna().unique()) else 0,
                             key="prov_det")
     df_det = dp[dp["Provincia"] == prov_sel].copy()
+    df_det["TipoOrgano"] = df_det["TipoOrgano"].replace({"JIP": "J. ESP.", "JUP": "J. ESP."})
 
     col_e, col_f = st.columns([1, 2])
     with col_e:
