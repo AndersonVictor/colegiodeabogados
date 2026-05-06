@@ -133,10 +133,11 @@ html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
 
 # ── Data loader ──────────────────────────────────────────────────────────────
 BASE = os.path.dirname(__file__)
+EXCEL_PATH = os.path.join(BASE, "DASHBOARD INGE.xlsx")
 
 @st.cache_data
-def load_data():
-    xls = pd.ExcelFile(os.path.join(BASE, "DASHBOARD INGE.xlsx"))
+def load_data(_excel_mtime):
+    xls = pd.ExcelFile(EXCEL_PATH)
     cp  = xls.parse("Carga Procesal")
     cp.columns = ["Año","Especialidad","Ingresos","CargaProcesal","Resueltos"]
     cp["Especialidad"] = cp["Especialidad"].str.title()
@@ -146,17 +147,104 @@ def load_data():
     pob.columns = ["Provincia","Año","TipoAnio","Varones","Mujeres","Total","PctV","PctM","TasaCrec"]
     pob["Provincia"] = pob["Provincia"].apply(lambda x: "Concepción" if "Concepci" in str(x) else ("Junín (prov.)" if "prov" in str(x) else x))
 
-    dp  = xls.parse("Data_Plana", skiprows=1)
-    dp.columns = ["Provincia","Sede","TipoOrgano","Especialidad","Numero","Nombre","Sexo","Condicion","CondicionLabel"]
+    # Detalle individual: usar hoja "Detalle_Provincia" (refleja registros actualizados por provincia)
+    dp_raw = xls.parse("Detalle_Provincia", header=None).iloc[2:, :8].copy()
+    dp_raw.columns = ["ProvinciaRaw", "TipoOrgano", "Especialidad", "Numero", "Sede", "Nombre", "Sexo", "CondicionLabel"]
+
+    dp_rows = []
+    current_prov = None
+    for _, row in dp_raw.iterrows():
+        prov_raw = str(row["ProvinciaRaw"]).strip() if pd.notna(row["ProvinciaRaw"]) else ""
+        if prov_raw and "PROVINCIA DE" in prov_raw.upper():
+            current_prov = prov_raw.upper().replace("PROVINCIA DE", "").strip()
+            continue
+
+        if current_prov is None:
+            continue
+        if pd.isna(row["TipoOrgano"]) and pd.isna(row["Nombre"]):
+            continue
+
+        dp_rows.append({
+            "Provincia": current_prov,
+            "Sede": row["Sede"],
+            "TipoOrgano": row["TipoOrgano"],
+            "Especialidad": row["Especialidad"],
+            "Numero": row["Numero"],
+            "Nombre": row["Nombre"],
+            "Sexo": row["Sexo"],
+            "CondicionLabel": row["CondicionLabel"],
+        })
+
+    dp = pd.DataFrame(dp_rows)
+    if not dp.empty:
+        def normalize_prov_name(value):
+            u = str(value).upper()
+            if "HUANCAY" in u:
+                return "Huancayo"
+            if "TARMA" in u:
+                return "Tarma"
+            if "JAUJA" in u:
+                return "Jauja"
+            if "TAYACAJA" in u:
+                return "Tayacaja"
+            if "CHUPACA" in u:
+                return "Chupaca"
+            if "CONCEP" in u:
+                return "Concepción"
+            if "YAULI" in u:
+                return "Yauli"
+            if u.strip().startswith("JUN"):
+                return "Junín"
+            return str(value).title()
+
+        dp["Provincia"] = dp["Provincia"].apply(normalize_prov_name)
+        dp["Condicion"] = dp["CondicionLabel"].astype(str).str[0]
+    else:
+        # Fallback por si cambia estructura de "Detalle_Provincia"
+        dp = xls.parse("Data_Plana", skiprows=1)
+        dp.columns = ["Provincia","Sede","TipoOrgano","Especialidad","Numero","Nombre","Sexo","Condicion","CondicionLabel"]
 
     rp  = xls.parse("Resumen_Provincia", skiprows=1)
     rp.columns = ["Provincia","Total","JPL","JIP","JUP","Sala","Varones","Mujeres","Titulares","SupernProv"]
 
     aud = xls.parse("Audiencias_Data")
     aud.columns = ["Sede","Año","TipoAnio","Programadas","Atendidas","Suspendidas","TasaAtencion"]
-    return cp, pob, dp, rp, aud
+    
+    # Bloque SNEJ dentro de la hoja "Resumen" (encabezado: año, juzgado, ...)
+    res_raw = xls.parse("Resumen", header=None)
+    snej_header_idx = None
+    for idx, val in enumerate(res_raw.iloc[:, 0].astype(str).str.strip().str.lower()):
+        if val in ("año", "ano"):
+            snej_header_idx = idx
+            break
+    if snej_header_idx is not None:
+        snej = res_raw.iloc[snej_header_idx + 1:, :7].copy()
+        snej.columns = ["Año", "Juzgado", "Programadas", "Realizadas", "Suspendidas", "PctAtencion", "PctSuspension"]
+        snej = snej.dropna(subset=["Año", "Juzgado"])
+        snej = snej[pd.to_numeric(snej["Año"], errors="coerce").notna()].copy()
+        snej["Año"] = snej["Año"].astype(int)
+        for c in ["Programadas", "Realizadas", "Suspendidas", "PctAtencion", "PctSuspension"]:
+            snej[c] = pd.to_numeric(snej[c], errors="coerce")
+        snej = snej.dropna(subset=["Programadas", "Realizadas", "Suspendidas", "PctAtencion", "PctSuspension"])
+        # Abreviaciones SNEJ para visualización consistente
+        snej["Juzgado"] = (
+            snej["Juzgado"].astype(str).str.strip()
+            .str.replace("Juzgado de Investigación Preparatoria", "JIP", regex=False)
+            .str.replace("Juzgado de Investigacion Preparatoria", "JIP", regex=False)
+            .str.replace("Juzgado de Penal Unipersonal", "JUP", regex=False)
+            .str.replace("Juzgado Penal Colegiado Conformado", "JPCC", regex=False)
+            .str.replace("Primer Juzgado Penal Colegiado Transitorio", "1 JPCT", regex=False)
+            .str.replace("Segundo Juzgado Penal Colegiado Transitorio", "2 JPCT", regex=False)
+            .str.replace("Primer ", "1 ", regex=False)
+            .str.replace("Segundo ", "2 ", regex=False)
+            .str.replace("Tercer ", "3 ", regex=False)
+        )
+    else:
+        snej = pd.DataFrame(columns=["Año", "Juzgado", "Programadas", "Realizadas", "Suspendidas", "PctAtencion", "PctSuspension"])
+    return cp, pob, dp, rp, aud, snej
 
-cp, pob, dp, rp, aud = load_data()
+excel_mtime = os.path.getmtime(EXCEL_PATH) if os.path.exists(EXCEL_PATH) else 0
+cp, pob, dp, rp, aud, snej = load_data(excel_mtime)
 
 import base64
 
@@ -253,6 +341,18 @@ T_POB, T_RES, T_CAR, T_AUD, T_PER = st.tabs([
 # ═══════════════════════════════════════════════════════════════════════════
 with T_CAR:
     st.markdown('<div class="section-title">Evolución de la Carga Procesal por Especialidad</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div style="margin: 6px 0 14px 0;">
+            <a href="https://drive.google.com/file/d/1SGrXdbKbevXpjRKkMHKs3RiILczEFTyF/view?usp=sharing" target="_blank" rel="noopener noreferrer" style="text-decoration: none;">
+                <span style="display: inline-block; background: linear-gradient(135deg, #8B1A2B 0%, #6B0F1A 100%); color: #ffffff; padding: 10px 18px; border-radius: 10px; font-weight: 800; font-size: 1rem; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(107,15,26,0.35);">
+                    VER BOLETIN
+                </span>
+            </a>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     ESP_COLORS = {
         "Civil":             "#00ACC1",
@@ -320,70 +420,98 @@ with T_CAR:
 
     st.markdown('<div class="section-title" style="color: #8B1A2B; border-left-color: #8B1A2B;">⚠️ Alerta: Situación de Carga Procesal Proyectada a Diciembre 2026</div>', unsafe_allow_html=True)
     
-    alert_data = [
-        "SALA CIVIL DE HUANCAYO",
-        "2° JUZGADO DE FAMILIA DE HUANCAYO",
-        "1° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. INMEDIATOS)",
-        "2° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. COMUNES)",
-        "3° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. INMEDIATOS)",
-        "4° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. COMUNES)",
-        "5° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO",
-        "6° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO",
-        "1° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)",
-        "2° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)",
-        "5° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO",
-        "6° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)",
-        "8° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO",
-        "JUZGADO DE INVESTIGACIÓN PREPARATORIA DE CHUPACA (PROC. INMEDIATOS) (PROC. COMUNES)"
+    alert_rows = [
+        ("SALA CIVIL DE HUANCAYO", 2380, 3049, 28.1),
+        ("2° JUZGADO DE FAMILIA DE HUANCAYO", 850, 1152, 35.5),
+        ("1° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. INMEDIATOS)", 1102, 2071, 88.0),
+        ("2° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. COMUNES)", 549, 1353, 146.4),
+        ("3° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. INMEDIATOS)", 1102, 1514, 37.4),
+        ("4° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. COMUNES)", 549, 1347, 145.2),
+        ("5° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO", 88, 265, 199.4),
+        ("6° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO", 88, 294, 232.4),
+        ("1° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)", 811, 1256, 54.9),
+        ("2° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)", 811, 1317, 62.4),
+        ("5° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO", 190, 339, 78.1),
+        ("6° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)", 811, 1255, 54.8),
+        ("8° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO", 190, 320, 68.2),
+        ("JUZGADO DE INVESTIGACIÓN PREPARATORIA DE CHUPACA (PROC. INMEDIATOS) (PROC. COMUNES)", 811, 1069, 31.8),
     ]
-    df_alert = pd.DataFrame({
-        "ÓRGANOS JURISDICCIONALES": alert_data,
-        "ESTADO": ["SOBRECARGA"] * len(alert_data),
-        "VALOR": [1] * len(alert_data)
-    })
+    df_alert = pd.DataFrame(
+        alert_rows,
+        columns=["ÓRGANOS JURISDICCIONALES", "CARGA_MÁXIMA", "CARGA_PROYECTADA", "PORC_SOBRECARGA"]
+    )
+    df_alert["ÓRGANO_ABREV"] = (
+        df_alert["ÓRGANOS JURISDICCIONALES"]
+        .str.replace("JUZGADO DE INVESTIGACIÓN PREPARATORIA", "JIP", regex=False)
+        .str.replace("JUZGADO PENAL UNIPERSONAL", "JUP", regex=False)
+        .str.replace("SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS", "SUPRA ESP. CORRUPCIÓN", regex=False)
+        .str.replace("SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS", "SUPRA ESP. CORRUPCIÓN", regex=False)
+        .str.replace("DE HUANCAYO", "HUANCAYO", regex=False)
+        .str.replace("DE CHUPACA", "CHUPACA", regex=False)
+    )
+    df_alert["SOBRECARGA"] = df_alert["CARGA_PROYECTADA"] - df_alert["CARGA_MÁXIMA"]
+    df_alert["ESTADO"] = "SOBRECARGA"
 
-    col_alert1, col_alert2 = st.columns([2, 1])
-    with col_alert1:
-        fig_alert = px.bar(
-            df_alert, 
-            y="ÓRGANOS JURISDICCIONALES", 
-            x="VALOR",
-            orientation="h",
-            text="ESTADO",
-            title="<b>Órganos Jurisdiccionales en Sobrecarga</b>",
-            color_discrete_sequence=["#8B1A2B"]
-        )
-        fig_alert.update_traces(textposition="inside", textfont_size=14, textfont_color="white", hovertemplate="%{y}<extra></extra>")
-        fig_alert.update_layout(
-            template="custom_theme", 
-            height=550, 
-            title_font_size=16, 
-            xaxis=dict(visible=False),
-            yaxis=dict(title="", tickfont=dict(size=10)),
-            margin=dict(l=10, r=10, t=40, b=10)
-        )
-        fig_alert.update_yaxes(autorange="reversed")
-        st.plotly_chart(fig_alert, width='stretch', theme=None)
-        
-    with col_alert2:
-        st.markdown(f'''
+    st.markdown(f'''
         <div style="background-color: #F5E6E4; border: 2px solid #8B1A2B; border-radius: 10px; padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 15px rgba(139,26,43,0.2);">
             <div style="font-size: 4.5rem; margin-bottom: 10px; line-height: 1;">🚨</div>
             <h3 style="color: #8B1A2B; margin-top: 0; font-size: 1.6rem; font-weight: 800;">ALERTA CRÍTICA</h3>
             <p style="font-size: 1.15rem; color: #444; margin-bottom: 15px;">
-                Se proyecta que <b>{len(alert_data)}</b> órganos jurisdiccionales alcanzarán un estado crítico de <b>sobrecarga procesal</b> para <b>Diciembre de 2026</b>.
-            </p>
-            <p style="font-size: 1rem; color: #666; font-weight: 600;">
-                Requiere intervención inmediata y redistribución de carga.
+                Se proyecta que <b>{len(df_alert)}</b> órganos jurisdiccionales alcanzarán un estado crítico de <b>sobrecarga procesal</b> para <b>Diciembre de 2026</b>.
             </p>
         </div>
         ''', unsafe_allow_html=True)
+
+    df_alert_plot = df_alert.sort_values("SOBRECARGA", ascending=False).copy()
+    fig_alert = go.Figure()
+    fig_alert.add_trace(go.Bar(
+        y=df_alert_plot["ÓRGANO_ABREV"],
+        x=df_alert_plot["CARGA_MÁXIMA"],
+        orientation="h",
+        name="Carga máxima",
+        marker_color="#C9CED6",
+        customdata=df_alert_plot[["ÓRGANOS JURISDICCIONALES"]].values,
+        hovertemplate=(
+            "<b>%{customdata[0]}</b><br>"
+            "Carga máxima: %{x:,.0f}<extra></extra>"
+        )
+    ))
+    fig_alert.add_trace(go.Bar(
+        y=df_alert_plot["ÓRGANO_ABREV"],
+        x=df_alert_plot["SOBRECARGA"],
+        orientation="h",
+        name="Sobrecarga",
+        marker_color="#8B1A2B",
+        customdata=df_alert_plot[["ÓRGANOS JURISDICCIONALES", "CARGA_PROYECTADA"]].values,
+        text=df_alert_plot["SOBRECARGA"].map(lambda v: f"+{v:,.0f}"),
+        textposition="outside",
+        textfont=dict(size=14, color="#6B0F1A"),
+        hovertemplate=(
+            "<b>%{customdata[0]}</b><br>"
+            "Carga proyectada: %{customdata[1]:,.0f}<br>"
+            "Sobrecarga: %{x:,.0f}<br>"
+            "Diferencia: +%{x:,.0f}<extra></extra>"
+        )
+    ))
+    fig_alert.update_layout(
+        template="custom_theme", 
+        height=700, 
+        title_font_size=18, 
+        title="<b>Órganos en Sobrecarga: Carga Máxima vs Proyectada (Dic. 2026)</b>",
+        barmode="stack",
+        xaxis=dict(title="Expedientes", tickformat=",.0f", title_font=dict(size=16), tickfont=dict(size=13)),
+        yaxis=dict(title="", tickfont=dict(size=12)),
+        legend=dict(orientation="h", y=1.0, x=0, yanchor="bottom", font=dict(size=13)),
+        margin=dict(l=10, r=30, t=95, b=10)
+    )
+    fig_alert.update_yaxes(autorange=True)
+    st.plotly_chart(fig_alert, width='stretch', theme=None)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # TAB 2 — PROYECCIONES POBLACIONALES
 # ═══════════════════════════════════════════════════════════════════════════
 with T_POB:
-    st.markdown('<div class="section-title">Proyecciones Poblacionales — Región Junín (INEI 2007–2031)</div>',
+    st.markdown('<div class="section-title">Proyecciones Poblacionales — Región Junín (INEI 2026–2031)</div>',
                 unsafe_allow_html=True)
 
     pob_provs = pob[pob["Provincia"] != "Junín (región)"].copy()
@@ -408,11 +536,15 @@ with T_POB:
     chip_css_rules_prov = ""
     for prov_name, prov_color in PROV_COLORS.items():
         chip_css_rules_prov += f"""
-        [data-baseweb="tag"] span[title="{prov_name}"] ~ div,
-        [data-baseweb="tag"]:has(span[title="{prov_name}"]) {{
+        .st-key-prov_pob [data-baseweb="tag"]:has(span[title="{prov_name}"]),
+        .st-key-prov_pob [data-baseweb="tag"]:has(span[aria-label="{prov_name}"]) {{
             background-color: {prov_color} !important;
             color: #ffffff !important;
             border: 1.5px solid {prov_color} !important;
+        }}
+        .st-key-prov_pob [data-baseweb="tag"]:has(span[title="{prov_name}"]) span,
+        .st-key-prov_pob [data-baseweb="tag"]:has(span[aria-label="{prov_name}"]) span {{
+            color: #ffffff !important;
         }}
         """
     st.markdown(f"<style>{chip_css_rules_prov}</style>", unsafe_allow_html=True)
@@ -422,11 +554,119 @@ with T_POB:
                                   key="prov_pob")
     df_pb = pob_provs[pob_provs["Provincia"].isin(sel_prov_pob)]
 
-    fig = px.line(df_pb, x="Año", y="Total", color="Provincia",
+    # Solo para este gráfico: proyectar desde 2020 con tasa base 0.2%
+    # y excepción de Tayacaja con -2.7%.
+    df_pb_base = df_pb[df_pb["Año"] >= 2020].copy()
+    df_pb_proj_list = []
+    if not df_pb_base.empty:
+        max_year = int(df_pb_base["Año"].max())
+        for prov_name, prov_df in df_pb_base.groupby("Provincia"):
+            prov_2020 = prov_df[prov_df["Año"] == 2020]
+            if prov_2020.empty:
+                continue
+
+            base_total = float(prov_2020["Total"].iloc[0])
+            growth_rate = -0.027 if str(prov_name).strip().casefold() == "tayacaja" else 0.002
+
+            for year in range(2020, max_year + 1):
+                years_elapsed = year - 2020
+                proj_total = base_total * ((1 + growth_rate) ** years_elapsed)
+                df_pb_proj_list.append({
+                    "Provincia": prov_name,
+                    "Año": year,
+                    "Total": proj_total,
+                })
+
+    df_pb_proj = pd.DataFrame(df_pb_proj_list)
+    if df_pb_proj.empty:
+        df_pb_proj = df_pb_base[["Provincia", "Año", "Total"]].copy()
+
+    st.markdown(
+        """
+        <div style="display:flex; justify-content:flex-end; margin: 4px 0 10px 0;">
+            <div style="background: linear-gradient(135deg, #ffffff 0%, #f8ecef 100%); border: 1.5px solid #8B1A2B; border-radius: 12px; padding: 8px 12px; box-shadow: 0 2px 10px rgba(139,26,43,0.12);">
+                <div style="font-size: 0.86rem; color: #6B0F1A; font-weight: 800; margin-bottom: 3px;">Tasas de proyección</div>
+                <div style="font-size: 0.83rem; color: #333;">Junín: <b>+0.2%</b> anual &nbsp;|&nbsp; Tayacaja: <b>-2.7%</b> anual</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    fig = px.line(df_pb_proj, x="Año", y="Total", color="Provincia",
                   markers=True, title="<b>Población Total Proyectada</b>",
-                  color_discrete_map=PROV_COLORS)
-    fig.update_layout(template="custom_theme", height=360, title_font_size=16)
+                  color_discrete_map=PROV_COLORS,
+                  labels={"Total": "Población", "Año": "Año", "Provincia": "Provincia"})
+    fig.update_layout(
+        template="custom_theme",
+        height=360,
+        title_font_size=16,
+        yaxis_title="Población",
+        margin=dict(t=60, r=20, b=30, l=20)
+    )
     st.plotly_chart(fig, width='stretch', theme=None)
+
+    st.markdown('<div class="section-title">Jueces por Población (Proyección 2026)</div>',
+                unsafe_allow_html=True)
+    ind_2026 = pd.DataFrame([
+        {"CATEGORÍA": "A NIVEL NACIONAL (1)", "CANTIDAD DE JUECES": 3776, "PROYECCIÓN DE POBLACIÓN AL 2026": 34038457, "CANTIDAD DE JUECES POR POBLACIÓN": 11},
+        {"CATEGORÍA": "DISTRITO JUDICIAL DE JUNÍN (2)", "CANTIDAD DE JUECES": 121, "PROYECCIÓN DE POBLACIÓN AL 2026": 967920, "CANTIDAD DE JUECES POR POBLACIÓN": 13},
+        {"CATEGORÍA": "Huancayo (3)", "CANTIDAD DE JUECES": 80, "PROYECCIÓN DE POBLACIÓN AL 2026": 553848, "CANTIDAD DE JUECES POR POBLACIÓN": 14},
+        {"CATEGORÍA": "Chupaca", "CANTIDAD DE JUECES": 5, "PROYECCIÓN DE POBLACIÓN AL 2026": 53787, "CANTIDAD DE JUECES POR POBLACIÓN": 5},
+        {"CATEGORÍA": "Concepción", "CANTIDAD DE JUECES": 4, "PROYECCIÓN DE POBLACIÓN AL 2026": 56430, "CANTIDAD DE JUECES POR POBLACIÓN": 4},
+        {"CATEGORÍA": "Jauja", "CANTIDAD DE JUECES": 7, "PROYECCIÓN DE POBLACIÓN AL 2026": 84514, "CANTIDAD DE JUECES POR POBLACIÓN": 7},
+        {"CATEGORÍA": "Junín", "CANTIDAD DE JUECES": 4, "PROYECCIÓN DE POBLACIÓN AL 2026": 23482, "CANTIDAD DE JUECES POR POBLACIÓN": 4},
+        {"CATEGORÍA": "Tarma", "CANTIDAD DE JUECES": 12, "PROYECCIÓN DE POBLACIÓN AL 2026": 90942, "CANTIDAD DE JUECES POR POBLACIÓN": 12},
+        {"CATEGORÍA": "Yauli", "CANTIDAD DE JUECES": 4, "PROYECCIÓN DE POBLACIÓN AL 2026": 40999, "CANTIDAD DE JUECES POR POBLACIÓN": 4},
+        {"CATEGORÍA": "Tayacaja - Dpto. Huancavelica*", "CANTIDAD DE JUECES": 5, "PROYECCIÓN DE POBLACIÓN AL 2026": 63918, "CANTIDAD DE JUECES POR POBLACIÓN": 5},
+    ])
+    ind_2026["COLOR"] = ind_2026["CATEGORÍA"].apply(
+        lambda c: "#8B1A2B" if "DISTRITO JUDICIAL" in c else ("#1565C0" if "Huancayo" in c else "#C4952A")
+    )
+    fig_ind = go.Figure(go.Bar(
+        y=ind_2026["CATEGORÍA"],
+        x=ind_2026["CANTIDAD DE JUECES POR POBLACIÓN"],
+        orientation="h",
+        marker_color=ind_2026["COLOR"],
+        text=ind_2026["CANTIDAD DE JUECES POR POBLACIÓN"].map(lambda v: f"{v}"),
+        textposition="outside",
+        customdata=ind_2026[["CANTIDAD DE JUECES", "PROYECCIÓN DE POBLACIÓN AL 2026"]].values,
+        hovertemplate=(
+            "<b>%{y}</b><br>"
+            "Jueces: %{customdata[0]:,.0f}<br>"
+            "Población 2026: %{customdata[1]:,.0f}<br>"
+            "Jueces por 100 mil hab.: %{x}<extra></extra>"
+        )
+    ))
+    fig_ind.update_layout(
+        template="custom_theme",
+        title="<b>Cantidad de Jueces por cada 100 mil Habitantes</b>",
+        height=460,
+        title_font_size=16,
+        xaxis_title="Jueces por cada 100 mil habitantes",
+        yaxis_title="",
+        margin=dict(l=10, r=40, t=45, b=10),
+    )
+    fig_ind.update_yaxes(autorange="reversed")
+    col_ind_graph, col_ind_note = st.columns([4, 1])
+    with col_ind_graph:
+        st.plotly_chart(fig_ind, width='stretch', theme=None)
+    with col_ind_note:
+        st.markdown(
+            """
+            <div style="background: #fff7ef; border: 1.5px solid #d8b98a; border-left: 5px solid #8B1A2B; border-radius: 10px; padding: 10px 12px; margin: 34px 0 12px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+                <div style="font-size: 0.83rem; color: #8B1A2B; font-weight: 800; margin-bottom: 6px;">
+                    Fuente y notas
+                </div>
+                <div style="font-size: 0.78rem; color: #5a4a36; line-height: 1.4;">
+                    <div><b>(1)</b> Población a nivel nacional elaborada por el Instituto Nacional de Estadística e Informática (INEI), sobre la base de las proyecciones de población 2018-2026; información preliminar y de carácter referencial. Se presenta la cantidad de jueces por cada 100 mil habitantes.</div>
+                    <div style="margin-top: 5px;"><b>(2)</b> Población del Distrito Judicial de Junín elaborada por la Coordinación de Estudios, Proyectos y Racionalización de la Corte Superior de Justicia de Junín, considerando la población de las provincias que lo conforman. Se presenta la cantidad de jueces por cada 100 mil habitantes.</div>
+                    <div style="margin-top: 5px;"><b>(3)</b> Huancayo. Se presenta la cantidad de jueces por cada 100 mil habitantes.</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     col_c, col_d = st.columns(2)
     with col_c:
@@ -457,7 +697,7 @@ with T_POB:
             textposition="outside"
         ))
         fig4.update_layout(template="custom_theme", title="<b>Población Proyectada 2031 por Provincia</b>",
-                           height=380, title_font_size=16, xaxis_title="Habitantes")
+                           height=fig3_height, title_font_size=16, xaxis_title="Habitantes")
         st.plotly_chart(fig4, width='stretch', theme=None)
 
     with st.expander("🗂️ Ver tabla de datos"):
@@ -637,6 +877,17 @@ with T_RES:
                 # Enhancing labels to make them more visible and professional
                 label_texts.append(prov_label.upper())
 
+        # Capa inferior con trazo muy fino para mejorar legibilidad
+        fig_map.add_trace(go.Scattergeo(
+            lat=label_lats, lon=label_lons,
+            mode="text",
+            text=label_texts,
+            textfont=dict(size=16, color="rgba(255,255,255,0.9)", family="Arial Black, Inter, sans-serif"),
+            textposition="middle center",
+            hoverinfo="none",
+            showlegend=False,
+        ))
+
         fig_map.add_trace(go.Scattergeo(
             lat=label_lats, lon=label_lons,
             mode="text",
@@ -778,7 +1029,7 @@ with T_RES:
 # TAB 4 — AUDIENCIAS
 # ═══════════════════════════════════════════════════════════════════════════
 with T_AUD:
-    st.markdown('<div class="section-title">Audiencias por Sede y Año (2017–2026)</div>',
+    st.markdown('<div class="section-title">Audiencias — PENAL NCPP</div>',
                 unsafe_allow_html=True)
 
     aud_anual = aud[aud["TipoAnio"] == "Anual"].copy()
@@ -877,6 +1128,97 @@ with T_AUD:
         df_show = df_aud.copy()
         df_show.index = range(1, len(df_show) + 1)
         st.dataframe(df_show, width='stretch')
+
+    st.markdown('<div class="section-title">Audiencias — PENAL SNEJ</div>',
+                unsafe_allow_html=True)
+
+    if snej.empty:
+        st.info("No se encontró información de PENAL SNEJ en la hoja 'Resumen'.")
+    else:
+        juzgados_all = sorted(snej["Juzgado"].unique())
+        sel_juzgados = st.multiselect("Juzgados SNEJ:", juzgados_all, default=juzgados_all, key="juzgados_snej")
+        df_snej = snej[snej["Juzgado"].isin(sel_juzgados)].copy()
+
+        DISTINCT_COLORS_JUZ = [
+            "#1565C0", "#D81B60", "#2E7D32", "#F9A825", "#00ACC1",
+            "#F4511E", "#5D4037", "#6A1B9A", "#E53935", "#6B0F1A", "#546E7A"
+        ]
+        JUZ_COLORS = {j: DISTINCT_COLORS_JUZ[i % len(DISTINCT_COLORS_JUZ)] for i, j in enumerate(juzgados_all)}
+
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            fig_s1 = px.line(
+                df_snej, x="Año", y="Programadas", color="Juzgado",
+                markers=True, title="<b>Audiencias Programadas (SNEJ)</b>",
+                color_discrete_map=JUZ_COLORS
+            )
+            fig_s1.update_layout(template="custom_theme", height=350, title_font_size=16, yaxis_title="Programadas")
+            st.plotly_chart(fig_s1, width='stretch', theme=None)
+        with col_s2:
+            fig_s2 = px.line(
+                df_snej, x="Año", y="PctAtencion", color="Juzgado",
+                markers=True, title="<b>Tasa de Atención por Juzgado (SNEJ)</b>",
+                color_discrete_map=JUZ_COLORS
+            )
+            fig_s2.update_yaxes(tickformat=".0%")
+            fig_s2.add_hline(y=0.95, line_dash="dash", line_color="#4A7C59",
+                             annotation_text="Meta 95%", annotation_font_color="#4A7C59")
+            fig_s2.update_layout(template="custom_theme", height=350, title_font_size=16, yaxis_title="% Atención")
+            st.plotly_chart(fig_s2, width='stretch', theme=None)
+
+        col_s3, col_s4 = st.columns(2)
+        with col_s3:
+            tot_snej = df_snej.groupby("Juzgado")[["Programadas", "Realizadas", "Suspendidas"]].sum().reset_index()
+            fig_s3 = px.bar(
+                tot_snej.melt(id_vars="Juzgado"), x="Juzgado", y="value", color="variable",
+                barmode="group", title="<b>Total Acumulado Programadas/Realizadas/Suspendidas (SNEJ)</b>",
+                color_discrete_sequence=["#1565C0", "#2E7D32", "#E53935"],
+                labels={"variable": "", "value": "Audiencias"}
+            )
+            fig_s3.update_layout(template="custom_theme", height=380, title_font_size=16, xaxis_title="")
+            st.plotly_chart(fig_s3, width='stretch', theme=None)
+        with col_s4:
+            anio_ref = int(df_snej["Año"].max())
+            df_ref = df_snej[df_snej["Año"] == anio_ref].copy().sort_values("PctAtencion", ascending=True)
+            df_ref["Pct"] = (df_ref["PctAtencion"] * 100).round(1)
+            fig_s4 = go.Figure(go.Bar(
+                y=df_ref["Juzgado"],
+                x=df_ref["Pct"],
+                orientation="h",
+                marker_color=df_ref["Pct"].apply(lambda v: "#4A7C59" if v >= 95 else ("#C4952A" if v >= 80 else "#8B1A2B")),
+                text=df_ref["Pct"].apply(lambda v: f"{v:.1f}%"),
+                textposition="outside",
+                customdata=df_ref[["Programadas", "Realizadas", "Suspendidas"]].values,
+                hovertemplate=(
+                    "<b>%{y}</b><br>"
+                    "Tasa de atención: %{x:.1f}%<br>"
+                    "Programadas: %{customdata[0]:,.0f}<br>"
+                    "Realizadas: %{customdata[1]:,.0f}<br>"
+                    "Suspendidas: %{customdata[2]:,.0f}<extra></extra>"
+                )
+            ))
+            fig_s4.add_vline(x=95, line_dash="dash", line_color="#4A7C59", line_width=2,
+                             annotation_text="Meta 95%", annotation_position="top right",
+                             annotation_font_color="#4A7C59", annotation_font_size=11)
+            fig_s4.update_layout(
+                title=f"<b>Tasa de Atención {anio_ref} por Juzgado (SNEJ)</b>",
+                template="custom_theme", height=380, title_font_size=16,
+                xaxis=dict(title="%", range=[0, 108], showgrid=True, gridcolor="#eee"),
+                yaxis=dict(title=""),
+                margin=dict(l=10, r=60, t=45, b=10)
+            )
+            st.plotly_chart(fig_s4, width='stretch', theme=None)
+
+        with st.expander("🗂️ Ver tabla de audiencias SNEJ"):
+            df_snej_show = df_snej.copy()
+            df_snej_show["% Atención"] = (df_snej_show["PctAtencion"] * 100).round(2)
+            df_snej_show["% Suspensión"] = (df_snej_show["PctSuspension"] * 100).round(2)
+            df_snej_show = df_snej_show.rename(columns={
+                "Realizadas": "Atendidas"
+            })
+            df_snej_show = df_snej_show[["Año", "Juzgado", "Programadas", "Atendidas", "Suspendidas", "% Atención", "% Suspensión"]]
+            df_snej_show.index = range(1, len(df_snej_show) + 1)
+            st.dataframe(df_snej_show, width='stretch')
 
 # ═══════════════════════════════════════════════════════════════════════════
 # TAB 5 — PERSONAL JURISDICCIONAL
@@ -1053,5 +1395,5 @@ TRABAJADORA SOCIAL				1	3	4"""
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div style="text-align:center;padding:22px 0 8px;color:#aaa;font-size:.74rem;">
-  ⚖️ Corte Superior de Justicia de Junín &nbsp;
+  ⚖️ Corte Superior de Justicia de Junín | Fuente: Portal de Informes &nbsp;
 </div>""", unsafe_allow_html=True)
