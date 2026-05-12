@@ -1,8 +1,14 @@
 import json
+import os
+
 import plotly.graph_objects as go
 import plotly.io as pio
 
-with open("peru_provincial_simple.geojson", encoding="utf-8") as f:
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+_PROJECT = os.path.dirname(_ROOT)
+_GEOJSON = os.path.join(_PROJECT, "data", "peru_provincial_simple.geojson")
+
+with open(_GEOJSON, encoding="utf-8") as f:
     geo_all = json.load(f)
 
 PROVINCIAS_DJ = {"HUANCAYO","TARMA","JAUJA","CHUPACA","CONCEPCION","YAULI","JUNIN","TAYACAJA"}
@@ -57,4 +63,4 @@ fig.update_layout(
     margin=dict(l=0, r=0, t=40, b=0),
     paper_bgcolor="rgba(242,232,217,0)"
 )
-fig.write_html("test_map.html")
+fig.write_html(os.path.join(_ROOT, "test_map.html"))

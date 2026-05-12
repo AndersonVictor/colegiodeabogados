@@ -15,4 +15,5 @@ wheel==0.46.3
 xlsxwriter==3.2.9
 plotly>=5.0.0
 folium>=0.13.0
+streamlit>=1.28.0
 streamlit-folium>=0.20.0

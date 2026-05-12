@@ -1,7 +1,10 @@
-import pandas as pd
 import os
 
-EXCEL_PATH = r"DASHBOARD INGE.xlsx"
+import pandas as pd
+
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+_PROJECT = os.path.dirname(_ROOT)
+EXCEL_PATH = os.path.join(_PROJECT, "data", "DASHBOARD INGE.xlsx")
 
 if os.path.exists(EXCEL_PATH):
     xls = pd.ExcelFile(EXCEL_PATH)

@@ -130,12 +130,21 @@ NUEVA_PALETA = [
 
 import base64
 
+ROOT = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(ROOT, "data")
+_ASSET_FONTS = os.path.join(ROOT, "assets", "fonts")
+_ASSET_IMAGES = os.path.join(ROOT, "assets", "images")
+_ANDINA_FONT = os.path.join(_ASSET_FONTS, "Andina free.ttf")
+
+
 def get_base64_of_bin_file(bin_file):
     with open(bin_file, "rb") as f:
         data = f.read()
     return base64.b64encode(data).decode()
 
-_font_b64_early = get_base64_of_bin_file(os.path.join(os.path.dirname(__file__), "Andina free.ttf")) if os.path.exists(os.path.join(os.path.dirname(__file__), "Andina free.ttf")) else ""
+_font_b64_early = (
+    get_base64_of_bin_file(_ANDINA_FONT) if os.path.exists(_ANDINA_FONT) else ""
+)
 
 st.markdown(
     f"""
@@ -250,8 +259,7 @@ html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
 )
 
 # ── Data loader ──────────────────────────────────────────────────────────────
-BASE = os.path.dirname(__file__)
-EXCEL_PATH = os.path.join(BASE, "DASHBOARD INGE.xlsx")
+EXCEL_PATH = os.path.join(DATA_DIR, "DASHBOARD INGE.xlsx")
 
 
 @st.cache_data
@@ -555,10 +563,10 @@ with st.sidebar:
         st.rerun()
 
 # ── HEADER ───────────────────────────────────────────────────────────────────
-font_path = os.path.join(BASE, "Andina free.ttf")
+font_path = _ANDINA_FONT
 font_b64 = _font_b64_early
 
-logo_path = os.path.join(BASE, "image.png")
+logo_path = os.path.join(_ASSET_IMAGES, "image.png")
 if os.path.exists(logo_path):
     logo_b64 = get_base64_of_bin_file(logo_path)
     logo_html = (
@@ -596,8 +604,8 @@ with c1:
     )
 
 with c2:
-    juez_path = os.path.join(BASE, "juez.png")
-    jueza_path = os.path.join(BASE, "jueza.png")
+    juez_path = os.path.join(_ASSET_IMAGES, "juez.png")
+    jueza_path = os.path.join(_ASSET_IMAGES, "jueza.png")
     juez_b64 = get_base64_of_bin_file(juez_path) if os.path.exists(juez_path) else ""
     jueza_b64 = get_base64_of_bin_file(jueza_path) if os.path.exists(jueza_path) else ""
 
@@ -1351,7 +1359,7 @@ with T_RES:
         unsafe_allow_html=True,
     )
 
-    GEOJSON_PATH = os.path.join(BASE, "peru_provincial_simple.geojson")
+    GEOJSON_PATH = os.path.join(DATA_DIR, "peru_provincial_simple.geojson")
     PROVINCIAS_DJ = {
         "HUANCAYO",
         "TARMA",

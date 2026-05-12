@@ -1,7 +1,11 @@
-import sys
+import os
 import re
 
-with open('app.py', 'r', encoding='utf-8') as f:
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+_PROJECT = os.path.dirname(_ROOT)
+_APP_PY = os.path.join(_PROJECT, "app.py")
+
+with open(_APP_PY, "r", encoding="utf-8") as f:
     content = f.read()
 
 # 1. Define SEDE_COLORS and inject CSS in T_AUD
@@ -94,6 +98,6 @@ content = content.replace("# ── HEADER", helper_func + "# ── HEADER")
 # Replace st.plotly_chart(fig_something
 content = re.sub(r'st\.plotly_chart\((fig\w*)', r'st.plotly_chart(apply_big_fonts(\1)', content)
 
-with open('app.py', 'w', encoding='utf-8') as f:
+with open(_APP_PY, "w", encoding="utf-8") as f:
     f.write(content)
 print("done")
