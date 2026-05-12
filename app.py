@@ -549,12 +549,23 @@ def load_data(_excel_mtime, _excel_size):
                 "PctSuspension",
             ]
         )
-    return cp, pob, dp, rp, aud, snej
+
+    # ── Hojas de datos antes hardcodeados ─────────────────────────────────────
+    df_alerta = xls.parse("Alerta_Sobrecarga") if "Alerta_Sobrecarga" in xls.sheet_names else pd.DataFrame()
+    df_pob_proy = xls.parse("Pob_Proyeccion") if "Pob_Proyeccion" in xls.sheet_names else pd.DataFrame()
+    df_jueces = xls.parse("Jueces_Pob_2026") if "Jueces_Pob_2026" in xls.sheet_names else pd.DataFrame()
+    df_regimen = xls.parse("Personal_Regimen") if "Personal_Regimen" in xls.sheet_names else pd.DataFrame()
+    df_cargos_xls = xls.parse("Personal_Cargos") if "Personal_Cargos" in xls.sheet_names else pd.DataFrame()
+    for _c in ["LEY 29277", "728", "276", "CAS", "RECAS", "Total"]:
+        if _c in df_cargos_xls.columns:
+            df_cargos_xls[_c] = pd.to_numeric(df_cargos_xls[_c], errors="coerce").fillna(0).astype(int)
+
+    return cp, pob, dp, rp, aud, snej, df_alerta, df_pob_proy, df_jueces, df_regimen, df_cargos_xls
 
 
 excel_mtime = os.path.getmtime(EXCEL_PATH) if os.path.exists(EXCEL_PATH) else 0
 excel_size = os.path.getsize(EXCEL_PATH) if os.path.exists(EXCEL_PATH) else 0
-cp, pob, dp, rp, aud, snej = load_data(excel_mtime, excel_size)
+cp, pob, dp, rp, aud, snej, df_alerta, df_pob_proy, df_jueces, df_regimen, df_cargos_xls = load_data(excel_mtime, excel_size)
 
 with st.sidebar:
     st.markdown("### 🔄 Datos")
@@ -873,81 +884,9 @@ with T_CAR:
         unsafe_allow_html=True,
     )
 
-    alert_rows = [
-        ("SALA CIVIL DE HUANCAYO", 2380, 3049, 28.1),
-        (
-            "1° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. INMEDIATOS)",
-            1100,
-            2069,
-            88.1,
-        ),
-        (
-            "3° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. INMEDIATOS)",
-            1100,
-            1512,
-            37.5,
-        ),
-        ("2° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. COMUNES)", 550, 1354, 146.2),
-        ("4° JUZGADO PENAL UNIPERSONAL DE HUANCAYO (PROC. COMUNES)", 550, 1348, 145.1),
-        (
-            "2° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)",
-            810,
-            1316,
-            62.5,
-        ),
-        (
-            "1° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)",
-            810,
-            1255,
-            54.9,
-        ),
-        (
-            "6° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)",
-            810,
-            1254,
-            54.8,
-        ),
-        ("2° JUZGADO DE FAMILIA DE HUANCAYO", 850, 1152, 35.5),
-        (
-            "JUZGADO DE INVESTIGACIÓN PREPARATORIA DE CHUPACA (PROC. INMEDIATOS) (PROC. COMUNES)",
-            810,
-            1068,
-            31.9,
-        ),
-        (
-            "5° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO",
-            180,
-            329,
-            82.8,
-        ),
-        (
-            "8° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO",
-            180,
-            310,
-            72.2,
-        ),
-        (
-            "6° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO",
-            90,
-            296,
-            228.9,
-        ),
-        (
-            "5° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO",
-            90,
-            267,
-            196.7,
-        ),
-    ]
-    df_alert = pd.DataFrame(
-        alert_rows,
-        columns=[
-            "ÓRGANOS JURISDICCIONALES",
-            "CARGA_MÁXIMA",
-            "CARGA_PROYECTADA",
-            "PORC_SOBRECARGA",
-        ],
-    )
+    # Datos de alerta leídos desde la hoja Alerta_Sobrecarga del Excel
+    df_alert = df_alerta.copy()
+    df_alert.columns = ["ÓRGANOS JURISDICCIONALES", "CARGA_MÁXIMA", "CARGA_PROYECTADA", "PORC_SOBRECARGA"]
     df_alert["ÓRGANO_ABREV"] = (
         df_alert["ÓRGANOS JURISDICCIONALES"]
         .str.replace("JUZGADO DE INVESTIGACIÓN PREPARATORIA", "JIP", regex=False)
@@ -1091,26 +1030,18 @@ with T_POB:
     )
     df_pb = pob_provs[pob_provs["Provincia"].isin(sel_prov_pob)]
 
-    _pob_proj_rows = [
-        ("Huancayo", 1.0, [630_005, 636_085, 642_224, 648_422, 654_680, 660_997]),
-        ("Concepción", -0.3, [57_682, 57_531, 57_381, 57_231, 57_082, 56_933]),
-        ("Jauja", -0.4, [85_233, 84_879, 84_527, 84_176, 83_826, 83_478]),
-        ("Junín (prov.)", -2.0, [19_472, 19_085, 18_706, 18_334, 17_970, 17_613]),
-        ("Tarma", -1.4, [81_895, 80_711, 79_545, 78_396, 77_263, 76_147]),
-        ("Yauli", -1.5, [35_505, 34_965, 34_434, 33_910, 33_395, 32_887]),
-        ("Chupaca", 0.5, [59_563, 59_871, 60_181, 60_492, 60_805, 61_120]),
-        ("Tayacaja", -1.6, [75_599, 74_426, 73_272, 72_135, 71_016, 69_915]),
-    ]
-    _proj_years = list(range(2026, 2032))
+    # Proyecciones leídas desde la hoja Pob_Proyeccion del Excel
+    _year_cols = [c for c in df_pob_proy.columns if str(c).isdigit()]
     _pob_proj_data = []
-    for _prov, _rate, _totals in _pob_proj_rows:
-        for _yr, _tot in zip(_proj_years, _totals):
-            _pob_proj_data.append({"Provincia": _prov, "Año": _yr, "Total": _tot})
+    for _, _row in df_pob_proy.iterrows():
+        for _yr_col in _year_cols:
+            _pob_proj_data.append({"Provincia": _row["Provincia"], "Año": int(_yr_col), "Total": int(_row[_yr_col])})
     df_pb_proj = pd.DataFrame(_pob_proj_data)
     df_pb_proj = df_pb_proj[df_pb_proj["Provincia"].isin(sel_prov_pob)]
 
     _tasas_html = " &nbsp;|&nbsp; ".join(
-        f"{p}: <b>{r:+.1f}%</b>" for p, r, _ in _pob_proj_rows
+        f"{r['Provincia']}: <b>{r['TasaCrec']:+.1f}%</b>"
+        for _, r in df_pob_proy.iterrows()
     )
     st.markdown(
         f"""
@@ -1147,70 +1078,13 @@ with T_POB:
         '<div class="section-title">Jueces por Población (Proyección 2026)</div>',
         unsafe_allow_html=True,
     )
-    ind_2026 = pd.DataFrame(
-        [
-            {
-                "CATEGORÍA": "A NIVEL NACIONAL (1)",
-                "CANTIDAD DE JUECES": 3776,
-                "PROYECCIÓN DE POBLACIÓN AL 2026": 34_038_457,
-                "CANTIDAD DE JUECES POR POBLACIÓN": 11,
-            },
-            {
-                "CATEGORÍA": "DISTRITO JUDICIAL DE JUNÍN (2)",
-                "CANTIDAD DE JUECES": 119,
-                "PROYECCIÓN DE POBLACIÓN AL 2026": 1_044_954,
-                "CANTIDAD DE JUECES POR POBLACIÓN": 11,
-            },
-            {
-                "CATEGORÍA": "Huancayo (3)",
-                "CANTIDAD DE JUECES": 78,
-                "PROYECCIÓN DE POBLACIÓN AL 2026": 630_005,
-                "CANTIDAD DE JUECES POR POBLACIÓN": 12,
-            },
-            {
-                "CATEGORÍA": "Concepción",
-                "CANTIDAD DE JUECES": 4,
-                "PROYECCIÓN DE POBLACIÓN AL 2026": 57_682,
-                "CANTIDAD DE JUECES POR POBLACIÓN": 4,
-            },
-            {
-                "CATEGORÍA": "Jauja",
-                "CANTIDAD DE JUECES": 7,
-                "PROYECCIÓN DE POBLACIÓN AL 2026": 85_233,
-                "CANTIDAD DE JUECES POR POBLACIÓN": 7,
-            },
-            {
-                "CATEGORÍA": "Junín",
-                "CANTIDAD DE JUECES": 4,
-                "PROYECCIÓN DE POBLACIÓN AL 2026": 19_472,
-                "CANTIDAD DE JUECES POR POBLACIÓN": 4,
-            },
-            {
-                "CATEGORÍA": "Tarma",
-                "CANTIDAD DE JUECES": 12,
-                "PROYECCIÓN DE POBLACIÓN AL 2026": 81_895,
-                "CANTIDAD DE JUECES POR POBLACIÓN": 12,
-            },
-            {
-                "CATEGORÍA": "Yauli",
-                "CANTIDAD DE JUECES": 4,
-                "PROYECCIÓN DE POBLACIÓN AL 2026": 35_505,
-                "CANTIDAD DE JUECES POR POBLACIÓN": 4,
-            },
-            {
-                "CATEGORÍA": "Chupaca",
-                "CANTIDAD DE JUECES": 5,
-                "PROYECCIÓN DE POBLACIÓN AL 2026": 59_563,
-                "CANTIDAD DE JUECES POR POBLACIÓN": 5,
-            },
-            {
-                "CATEGORÍA": "Tayacaja - Dpto. Huancavelica*",
-                "CANTIDAD DE JUECES": 5,
-                "PROYECCIÓN DE POBLACIÓN AL 2026": 75_599,
-                "CANTIDAD DE JUECES POR POBLACIÓN": 5,
-            },
-        ]
-    )
+    # Jueces por población leídos desde la hoja Jueces_Pob_2026 del Excel
+    ind_2026 = df_jueces.rename(columns={
+        "CATEGORIA": "CATEGORÍA",
+        "CANTIDAD_JUECES": "CANTIDAD DE JUECES",
+        "PROY_POB_2026": "PROYECCIÓN DE POBLACIÓN AL 2026",
+        "JUECES_POR_100K": "CANTIDAD DE JUECES POR POBLACIÓN",
+    })
     ind_2026["COLOR"] = ind_2026["CATEGORÍA"].apply(
         lambda c: (
             "#8B1A2B"
@@ -2194,14 +2068,13 @@ with T_PER:
         unsafe_allow_html=True,
     )
 
+    # Personal por régimen leído desde la hoja Personal_Regimen del Excel
+    df_pers = df_regimen.rename(columns={"Regimen": "Régimen"})
+    _reg_vals = dict(zip(df_pers["Régimen"], df_pers["Cantidad"]))
+    _total_pers = int(df_pers["Cantidad"].sum())
+
     col_p1, col_p2 = st.columns([1, 2])
     with col_p1:
-        df_pers = pd.DataFrame(
-            {
-                "Régimen": ["LEY 29277", "728", "276", "CAS", "RECAS"],
-                "Cantidad": [121, 482, 3, 331, 137],
-            }
-        )
         fig_pers = px.pie(
             df_pers,
             names="Régimen",
@@ -2231,28 +2104,28 @@ with T_PER:
         <div style="display:flex; flex-direction:column; gap:20px; justify-content:center; height:100%; padding:10px;">
             <div style="background:linear-gradient(135deg, {ROJO}, {ROJO2}); padding:25px; border-radius:18px; color:white; text-align:center; box-shadow:0 6px 20px rgba(123,26,26,0.3);">
                 <div style="margin:0; font-size:1.6rem; font-weight:600; opacity:0.9; text-transform:uppercase; letter-spacing:1px;">TOTAL PERSONAL JURISDICCIONAL</div>
-                <div style="margin:5px 0 0; font-size:6.5rem; font-weight:800; line-height:1;">1,074</div>
+                <div style="margin:5px 0 0; font-size:6.5rem; font-weight:800; line-height:1;">{_total_pers:,}</div>
             </div>
             <div style="display:flex; gap:15px; flex-wrap:wrap; justify-content:center;">
                 <div style="flex:1; min-width: 110px; background:white; padding:15px; border-radius:14px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.1); border-bottom:6px solid #F9A825;">
                     <div style="margin:0; font-size:1rem; font-weight:600; color:#555;">728</div>
-                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#F9A825; line-height:1;">482</div>
+                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#F9A825; line-height:1;">{_reg_vals.get('728', 0)}</div>
                 </div>
                 <div style="flex:1; min-width: 110px; background:white; padding:15px; border-radius:14px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.1); border-bottom:6px solid #E53935;">
                     <div style="margin:0; font-size:1rem; font-weight:600; color:#555;">CAS</div>
-                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#E53935; line-height:1;">331</div>
+                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#E53935; line-height:1;">{_reg_vals.get('CAS', 0)}</div>
                 </div>
                 <div style="flex:1; min-width: 110px; background:white; padding:15px; border-radius:14px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.1); border-bottom:6px solid #6A1B9A;">
                     <div style="margin:0; font-size:1rem; font-weight:600; color:#555;">RECAS</div>
-                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#6A1B9A; line-height:1;">137</div>
+                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#6A1B9A; line-height:1;">{_reg_vals.get('RECAS', 0)}</div>
                 </div>
                 <div style="flex:1; min-width: 110px; background:white; padding:15px; border-radius:14px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.1); border-bottom:6px solid #1565C0;">
                     <div style="margin:0; font-size:1rem; font-weight:600; color:#555;">LEY 29277</div>
-                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#1565C0; line-height:1;">121</div>
+                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#1565C0; line-height:1;">{_reg_vals.get('LEY 29277', 0)}</div>
                 </div>
                 <div style="flex:1; min-width: 110px; background:white; padding:15px; border-radius:14px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.1); border-bottom:6px solid #2E7D32;">
                     <div style="margin:0; font-size:1rem; font-weight:600; color:#555;">276</div>
-                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#2E7D32; line-height:1;">3</div>
+                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#2E7D32; line-height:1;">{_reg_vals.get('276', 0)}</div>
                 </div>
             </div>
         </div>
@@ -2260,123 +2133,10 @@ with T_PER:
             unsafe_allow_html=True,
         )
 
-    raw_data_pers = """CARGO	LEY 29277	728	276	CAS	RECAS	Total
-ADMINISTRADOR		4				4
-ADMINISTRADOR DE CORTE SUPERIOR		1				1
-ADMINISTRADOR DE MODULO				2		2
-ADMINISTRADOR I		1				1
-ADMINISTRADOR MÓDULO DEL NUEVO CÓDIGO PROCESAL PENAL		1				1
-AGENTE DE  SEGURIDAD				7		7
-ANALISTA				1	1	2
-ANALISTA ADMINISTRATIVO/A				2		2
-ANALISTA DE INFORMATICA				1		1
-ANALISTA DE INFORMATICA - DESARROLLADOR				1		1
-ANALISTA I		1			1	2
-ANALISTA II		7				7
-APOYO ADMINISTRATIVO				3	1	4
-APOYO ADMINISTRATIVO EN EL ARCHIVO DESCENTRALIZADO DE TARMA Y OTRAS ACTIVIDADES ADMINISTRATIVAS					1	1
-APOYO ADMINISTRATIVO EN EL AREA DE NOTIFICACIONES					1	1
-APOYO ADMINISTRATIVO EN LAS AREAS DE NOTIFICACIONES					3	3
-APOYO EN ACTIVIDADES ADMINISTRATIVAS				1		1
-APOYO EN CONTRATACIONES CON EL ESTADO					1	1
-APOYO EN EL DESARROLLO DE FUNCIONES DEL EQUIPO ITINERANTE					3	3
-APOYO EN INFORMES PSICOLOGICOS					1	1
-APOYO EN LA PREPARACION DE ALIMENTOS EN EL WAWA WASI INSTITUCIONAL					1	1
-APOYO EN PERICIAS CONTABLES JUDICIALES				1	1	2
-APOYO JURISDICCIONAL					2	2
-ASESOR DE CORTE		1				1
-ASISTENTE ADMINISTRATIVO				6	1	7
-ASISTENTE ADMINISTRATIVO I		14		4		18
-ASISTENTE ADMINISTRATIVO I MODULO				4		4
-ASISTENTE ADMINISTRATIVO II		18		1		19
-ASISTENTE DE ATENCION AL PUBLICO				1		1
-ASISTENTE DE ATENCIÓN AL PÚBLICO				4		4
-ASISTENTE DE COMUNICACIONES				15	2	17
-ASISTENTE DE CUSTODIA Y GRABACION				2	1	3
-ASISTENTE DE CUSTODIA Y GRABACIÓN				4		4
-ASISTENTE DE INFORMÁTICA				4		4
-ASISTENTE DE SISTEMAS		2		1		3
-ASISTENTE EN INFORMATICA					1	1
-ASISTENTE EN SERVICIOS ADMINISTRATIVOS		5		1		6
-ASISTENTE EN SERVICIOS DE COMUNICACIONES		13				13
-ASISTENTE INFORMÁTICO				3		3
-ASISTENTE JUDICIAL		55		20	2	77
-ASISTENTE JUDICIAL - PENAL				6		6
-ASISTENTE JUDICIAL - PROTECCIÓN				11		11
-ASISTENTE JURISDICCIONAL		13		20	2	35
-ASISTENTE JURISDICCIONAL DE CUSTODIA DE EXPEDIENTES		3				3
-ASISTENTE JURISDICCIONAL DE JUZGADO				22	12	34
-ASISTENTE JURISDICCIONAL ITINERANTE					2	2
-ASISTENTE LEGAL				9		9
-ASISTENTE LEGAL DE JUZGADO				1		1
-ASISTENTE SOCIAL				2	1	3
-AUXILIAR ADMINISTRATIVO				3		3
-AUXILIAR ADMINISTRATIVO I		44				44
-AUXILIAR ADMINISTRATIVO II		6				6
-AUXILIAR EN VIGILANCIA Y CONTROL				6		6
-AUXILIAR JUDICIAL		37		10		47
-AUXILIAR JUDICIAL - PROTECCIÓN				5		5
-AUXILIAR JUDICIAL I			1			1
-AUXILIAR JURISDICCIONAL ITINERANTE					1	1
-AUXILIAR LEGAL				1		1
-CAJERO		1				1
-CHOFER				2	1	3
-CHOFER I		3				3
-CONDUCCION DE VEHICULO				1	4	5
-CONDUCTOR DE VEHÍCULO				1		1
-COORDINADOR(CSJ_UE)		16				16
-COORDINADOR/A DE CAUSA/ AUDIENCIA				3		3
-COORDINADOR/A I				2		2
-EDUCADOR (A) DE APOYO AL EQUIPO MULTIDISCIPLINARIO					1	1
-ESPECIALISTA EN CONTABILIDAD GUBERNAMENTAL					1	1
-ESPECIALISTA JUDICIAL DE AUDIENCIA		19		16	11	46
-ESPECIALISTA JUDICIAL DE JUZGADO		30		46	24	100
-ESPECIALISTA JUDICIAL DE SALA		4		1		5
-ESPECIALISTA LEGAL				11		11
-ESPECIALISTA LEGAL DE AUDIENCIA				2		2
-ESPECIALISTA LEGAL DE JUZGADO				3		3
-ESPECIALISTA LEGAL DE SALA				3		3
-JEFE DE UNIDAD		3				3
-JEFE/A DE UNIDAD				2		2
-JUEZ DE PAZ LETRADO	20					20
-JUEZ ESPECIALIZADO	72					72
-JUEZ ESPECIALIZADO 7U-4	6					6
-JUEZ SUPERIOR	22					22
-MADRE CUIDADORA DEL WAWA WASI INSTITUCIONAL					2	2
-MEDICO					1	1
-NOTIFICADOR				6	3	9
-PERITO JUDICIAL		2		2		4
-PERSONAL  DE SEGURIDAD				6		6
-PRESIDENTE DE CORTE SUPERIOR	1					1
-PROFESIONAL LEGAL				2		2
-PROFESIONAL LEGAL DE JUZGADO				1		1
-PSICOLOGO		5		5	4	14
-RELATOR I		4				4
-RESGUARDO, CUSTODIA Y VIGILANCIA				6	36	42
-REVISOR		1				1
-SECRETARIO DE SALA		4				4
-SECRETARIO III		1				1
-SECRETARIO JUDICIAL		127		4	4	135
-SECRETARIO JUDICIAL I			1			1
-SECRETARIO/A DE JUZGADO - PROTECCIÓN				7		7
-SECRETARIO/A JUDICIAL				11		11
-SEGURIDAD				1		1
-TECNICO ADMINISTRATIVO I		1				1
-TECNICO ADMINISTRATIVO II		1		1		2
-TECNICO JUDICIAL		26				26
-TECNICO JUDICIAL I			1			1
-TRABAJADOR SOCIAL		8				8
-TRABAJADORA SOCIAL				1	3	4"""
-
-    import io
-
-    df_cargos = pd.read_csv(io.StringIO(raw_data_pers), sep="\t").fillna(0)
-    for col in ["LEY 29277", "728", "276", "CAS", "RECAS", "Total"]:
-        df_cargos[col] = df_cargos[col].astype(int)
 
     st.markdown("<br>", unsafe_allow_html=True)
     with st.expander("🗂️ Ver desglose detallado por Cargo"):
-        st.dataframe(df_cargos, width="stretch")
+        st.dataframe(df_cargos_xls, width="stretch")
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown(
