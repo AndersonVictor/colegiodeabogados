@@ -1,20 +1,3 @@
-"""
-inject_sheets.py
-----------------
-Agrega (o reemplaza) las 5 hojas de datos hardcodeados al Excel
-"DASHBOARD INGE.xlsx" para que el dashboard los lea desde ahí.
-
-Hojas que crea / actualiza:
-  - Alerta_Sobrecarga
-  - Pob_Proyeccion
-  - Jueces_Pob_2026
-  - Personal_Regimen
-  - Personal_Cargos
-
-Uso:
-    python scripts/inject_sheets.py
-"""
-
 import os
 import io
 import pandas as pd
@@ -23,8 +6,6 @@ from openpyxl import load_workbook
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXCEL_PATH = os.path.join(BASE_DIR, "data", "data.xlsx")
 
-
-# ── 1. Alerta_Sobrecarga ──────────────────────────────────────────────────────
 df_alerta = pd.DataFrame(
     [
         ("SALA CIVIL DE HUANCAYO", 2380, 3049, 28.1),
@@ -36,31 +17,15 @@ df_alerta = pd.DataFrame(
         ("1° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)", 810, 1255, 54.9),
         ("6° JUZGADO DE INVESTIGACIÓN PREPARATORIA DE HUANCAYO (PROC. COMUNES)", 810, 1254, 54.8),
         ("2° JUZGADO DE FAMILIA DE HUANCAYO", 850, 1152, 35.5),
-        (
-            "JUZGADO DE INVESTIGACIÓN PREPARATORIA DE CHUPACA (PROC. INMEDIATOS) (PROC. COMUNES)",
-            810, 1068, 31.9,
-        ),
-        (
-            "5° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO",
-            180, 329, 82.8,
-        ),
-        (
-            "8° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO",
-            180, 310, 72.2,
-        ),
-        (
-            "6° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO",
-            90, 296, 228.9,
-        ),
-        (
-            "5° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO",
-            90, 267, 196.7,
-        ),
+        ("JUZGADO DE INVESTIGACIÓN PREPARATORIA DE CHUPACA (PROC. INMEDIATOS) (PROC. COMUNES)", 810, 1068, 31.9),
+        ("5° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO", 180, 329, 82.8),
+        ("8° JUZGADO DE INVESTIGACIÓN PREPARATORIA SUPRAPROVINCIAL ESPECIALIZADO EN DELITO DE CORRUPCIÓN DE FUNCIONARIOS DE HUANCAYO", 180, 310, 72.2),
+        ("6° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO", 90, 296, 228.9),
+        ("5° JUZGADO PENAL UNIPERSONAL SUPRAPROVINCIAL ESPECIALIZADO EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS HUANCAYO", 90, 267, 196.7),
     ],
     columns=["ORGANO_JURISDICCIONAL", "CARGA_MAXIMA", "CARGA_PROYECTADA", "PORC_SOBRECARGA"],
 )
 
-# ── 2. Pob_Proyeccion ─────────────────────────────────────────────────────────
 df_pob_proy = pd.DataFrame(
     [
         ("Huancayo",       1.0,  630_005, 636_085, 642_224, 648_422, 654_680, 660_997),
@@ -75,7 +40,6 @@ df_pob_proy = pd.DataFrame(
     columns=["Provincia", "TasaCrec", "2026", "2027", "2028", "2029", "2030", "2031"],
 )
 
-# ── 3. Jueces_Pob_2026 ────────────────────────────────────────────────────────
 df_jueces = pd.DataFrame(
     [
         ("A NIVEL NACIONAL (1)",            3776, 34_038_457, 11),
@@ -89,23 +53,16 @@ df_jueces = pd.DataFrame(
         ("Chupaca",                            5,     59_563,  5),
         ("Tayacaja - Dpto. Huancavelica*",     5,     75_599,  5),
     ],
-    columns=[
-        "CATEGORIA",
-        "CANTIDAD_JUECES",
-        "PROY_POB_2026",
-        "JUECES_POR_100K",
-    ],
+    columns=["CATEGORIA", "CANTIDAD_JUECES", "PROY_POB_2026", "JUECES_POR_100K"],
 )
 
-# ── 4. Personal_Regimen ───────────────────────────────────────────────────────
 df_regimen = pd.DataFrame(
     {
         "Regimen":  ["LEY 29277", "728", "276", "CAS", "RECAS"],
-        "Cantidad": [121,         482,   3,     331,   137],
+        "Cantidad": [121, 482, 3, 331, 137],
     }
 )
 
-# ── 5. Personal_Cargos ────────────────────────────────────────────────────────
 raw = """CARGO\tLEY 29277\t728\t276\tCAS\tRECAS\tTotal
 ADMINISTRADOR\t\t4\t\t\t\t4
 ADMINISTRADOR DE CORTE SUPERIOR\t\t1\t\t\t\t1
@@ -218,8 +175,6 @@ df_cargos = pd.read_csv(io.StringIO(raw), sep="\t").fillna(0)
 for col in ["LEY 29277", "728", "276", "CAS", "RECAS", "Total"]:
     df_cargos[col] = df_cargos[col].astype(int)
 
-
-# ── Escribir en Excel ─────────────────────────────────────────────────────────
 SHEET_MAP = {
     "Alerta_Sobrecarga": df_alerta,
     "Pob_Proyeccion":    df_pob_proy,
@@ -231,20 +186,13 @@ SHEET_MAP = {
 wb = load_workbook(EXCEL_PATH)
 
 for sheet_name, df in SHEET_MAP.items():
-    # Eliminar hoja si ya existe para reescribirla
     if sheet_name in wb.sheetnames:
         del wb[sheet_name]
     ws = wb.create_sheet(title=sheet_name)
-
-    # Encabezados
     ws.append(list(df.columns))
-
-    # Filas
     for row in df.itertuples(index=False):
         ws.append(list(row))
-
-    print(f"  Hoja '{sheet_name}': {len(df)} filas escritas.")
+    print(f"  {sheet_name}: {len(df)} filas")
 
 wb.save(EXCEL_PATH)
-print(f"\nExcel guardado en: {EXCEL_PATH}")
-print("Hojas disponibles:", wb.sheetnames)
+print(f"\nGuardado: {EXCEL_PATH}")
