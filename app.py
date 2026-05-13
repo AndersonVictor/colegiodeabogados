@@ -223,7 +223,7 @@ html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
 .kpi-val  {{ font-size: 2.6rem; font-weight: 800; color: {ROJO}; margin: 0; line-height: 1.1; }}
 .kpi-lbl  {{ font-size: .95rem; color: #555; text-transform: uppercase; letter-spacing: .8px; margin-top: 6px; }}
 .kpi-delta{{ font-size: .9rem; color: {VERDE}; font-weight: 600; margin-top: 4px; }}
-
+.kpi-wrap {{ margin-bottom: 0; }}
 .section-title {{
     font-size: 1.35rem; font-weight: 800; color: {ROJO};
     border-left: 5px solid {ROJO}; padding-left: 12px;
@@ -253,6 +253,157 @@ html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
 .stTabs [aria-selected="true"] {{
     background: linear-gradient(135deg, {ROJO}, {ROJO2}) !important;
     color: #fff !important; box-shadow: 0 3px 14px rgba(123,26,26,.35);
+}}
+
+.map-title {{
+    margin: 0 0 4px 0;
+    padding: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: {ROJO};
+}}
+
+.personal-title {{
+    font-size: 1.8rem;
+}}
+
+.personal-wrap {{
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    justify-content: center;
+    height: 100%;
+    padding: 10px;
+}}
+
+.personal-total {{
+    background: linear-gradient(135deg, {ROJO}, {ROJO2});
+    padding: 25px;
+    border-radius: 18px;
+    color: white;
+    text-align: center;
+    box-shadow: 0 6px 20px rgba(123,26,26,0.3);
+}}
+
+.personal-total .total-label {{
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 600;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}}
+
+.personal-total .total-value {{
+    margin: 5px 0 0;
+    font-size: 6.5rem;
+    font-weight: 800;
+    line-height: 1;
+}}
+
+.personal-cards {{
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    justify-content: center;
+}}
+
+.personal-card {{
+    flex: 1;
+    min-width: 110px;
+    background: white;
+    padding: 15px;
+    border-radius: 14px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}}
+
+.personal-card .card-label {{
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #555;
+}}
+
+.personal-card .card-value {{
+    margin: 5px 0 0;
+    font-size: 2.5rem;
+    font-weight: 800;
+    line-height: 1;
+}}
+
+.xaxis-mobile-label {{
+    display: none;
+    text-align: center;
+    font-size: 0.85rem;
+    color: #555;
+    margin: -6px 0 12px;
+}}
+
+.alert-card {{
+    background-color: #F5E6E4;
+    border: 2px solid #8B1A2B;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(139,26,43,0.2);
+}}
+
+.alert-card .alert-icon {{
+    font-size: 4.5rem;
+    margin-bottom: 10px;
+    line-height: 1;
+}}
+
+.alert-card .alert-title {{
+    color: #8B1A2B;
+    margin-top: 0;
+    font-size: 1.6rem;
+    font-weight: 800;
+}}
+
+.alert-card .alert-text {{
+    font-size: 1.15rem;
+    color: #444;
+    margin-bottom: 15px;
+}}
+
+@media (max-width: 768px) {{
+    .map-title {{ font-size: 0.95rem; }}
+    .map-responsive-anchor + div [data-testid="stPlotlyChart"] > div {{
+        height: 60vh !important;
+        min-height: 320px !important;
+        max-height: 520px !important;
+    }}
+    .personal-title {{ font-size: 1.2rem; }}
+    .personal-wrap {{ padding: 6px; gap: 14px; }}
+    .personal-total {{ padding: 18px; }}
+    .personal-total .total-label {{ font-size: 0.9rem; }}
+    .personal-total .total-value {{ font-size: 3.2rem; }}
+    .personal-cards {{ gap: 10px; }}
+    .personal-card {{ min-width: 140px; flex: 1 1 45%; padding: 12px; }}
+    .personal-card .card-label {{ font-size: 0.9rem; }}
+    .personal-card .card-value {{ font-size: 1.8rem; }}
+    .pers-pie-anchor + div [data-testid="stPlotlyChart"] > div {{
+        height: 45vh !important;
+        min-height: 300px !important;
+        max-height: 420px !important;
+    }}
+    .xaxis-mobile-label {{ display: block; }}
+    .kpi-wrap {{ margin-bottom: 12px; }}
+    .kpi-card {{ height: auto; padding: 16px 14px; }}
+    .kpi-val {{ font-size: 2.1rem; }}
+    .kpi-card.kpi-split {{ flex-direction: column; gap: 10px; }}
+    .kpi-card.kpi-split > div {{ width: 100%; }}
+    .kpi-card.kpi-split .kpi-divider {{ display: none; }}
+    .alert-card {{ padding: 14px; }}
+    .alert-card .alert-icon {{ font-size: 3.2rem; }}
+    .alert-card .alert-title {{ font-size: 1.2rem; }}
+    .alert-card .alert-text {{ font-size: 1rem; margin-bottom: 8px; }}
 }}
 </style>
 """,
@@ -607,10 +758,12 @@ c1, c2, c3 = st.columns(3)
 with c1:
     st.markdown(
         f"""
-    <div class="kpi-card">
-      <div class="kpi-val">121</div>
-      <div class="kpi-lbl">Jueces y Juezas</div>
-      <div class="kpi-delta" style="font-size:1.2rem; font-weight:600; color:#555;">101 Órganos Jurisdiccionales</div>
+    <div class="kpi-wrap">
+      <div class="kpi-card">
+        <div class="kpi-val">121</div>
+        <div class="kpi-lbl">Jueces y Juezas</div>
+        <div class="kpi-delta" style="font-size:1.2rem; font-weight:600; color:#555;">101 Órganos Jurisdiccionales</div>
+      </div>
     </div>""",
         unsafe_allow_html=True,
     )
@@ -634,15 +787,17 @@ with c2:
 
     st.markdown(
         f"""
-    <div class="kpi-card" style="display:flex; flex-direction:row; justify-content:space-around; align-items:center;">
-      <div style="text-align:center;">
-        <div style="font-size:3.2rem; font-weight:800; color:#01497c; line-height:1;">80</div>
-        <div style="font-size:1.2rem; font-weight:600; color:#555; margin-top:2px;">{juez_icon}Varones</div>
-      </div>
-      <div style="width:2px; height:50px; background:#eee;"></div>
-      <div style="text-align:center;">
-        <div style="font-size:3.2rem; font-weight:800; color:#ff97b7; line-height:1;">41</div>
-        <div style="font-size:1.2rem; font-weight:600; color:#555; margin-top:2px;">{jueza_icon}Mujeres</div>
+    <div class="kpi-wrap">
+      <div class="kpi-card kpi-split" style="display:flex; flex-direction:row; justify-content:space-around; align-items:center;">
+        <div style="text-align:center;">
+          <div style="font-size:3.2rem; font-weight:800; color:#01497c; line-height:1;">80</div>
+          <div style="font-size:1.2rem; font-weight:600; color:#555; margin-top:2px;">{juez_icon}Varones</div>
+        </div>
+        <div class="kpi-divider" style="width:2px; height:50px; background:#eee;"></div>
+        <div style="text-align:center;">
+          <div style="font-size:3.2rem; font-weight:800; color:#ff97b7; line-height:1;">41</div>
+          <div style="font-size:1.2rem; font-weight:600; color:#555; margin-top:2px;">{jueza_icon}Mujeres</div>
+        </div>
       </div>
     </div>""",
         unsafe_allow_html=True,
@@ -651,18 +806,20 @@ with c2:
 with c3:
     st.markdown(
         f"""
-    <div class="kpi-card" style="display:flex; flex-direction:row; justify-content:space-around; align-items:center;">
-      <div style="text-align:center;">
-        <div style="font-size:2.8rem; font-weight:800; color:{VERDE}; line-height:1;">47</div>
-        <div style="font-size:1.1rem; font-weight:600; color:#555; margin-top:2px;">Titulares</div>
-      </div>
-      <div style="text-align:center;">
-        <div style="font-size:2.8rem; font-weight:800; color:{ROJO}; line-height:1;">51</div>
-        <div style="font-size:1.1rem; font-weight:600; color:#555; margin-top:2px;">Supernumerarios</div>
-      </div>
-      <div style="text-align:center;">
-        <div style="font-size:2.8rem; font-weight:800; color:#e67e22; line-height:1;">23</div>
-        <div style="font-size:1.1rem; font-weight:600; color:#555; margin-top:2px;">Provisionales</div>
+    <div class="kpi-wrap">
+      <div class="kpi-card kpi-split" style="display:flex; flex-direction:row; justify-content:space-around; align-items:center;">
+        <div style="text-align:center;">
+          <div style="font-size:2.8rem; font-weight:800; color:{VERDE}; line-height:1;">47</div>
+          <div style="font-size:1.1rem; font-weight:600; color:#555; margin-top:2px;">Titulares</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:2.8rem; font-weight:800; color:{ROJO}; line-height:1;">51</div>
+          <div style="font-size:1.1rem; font-weight:600; color:#555; margin-top:2px;">Supernumerarios</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:2.8rem; font-weight:800; color:#e67e22; line-height:1;">23</div>
+          <div style="font-size:1.1rem; font-weight:600; color:#555; margin-top:2px;">Provisionales</div>
+        </div>
       </div>
     </div>""",
         unsafe_allow_html=True,
@@ -740,10 +897,18 @@ with T_CAR:
     fig_resumen_cp.update_layout(
         template="custom_theme",
         legend_title="",
+        legend=dict(
+            orientation="h",
+            y=-0.05,
+            x=0.5,
+            xanchor="center",
+            yanchor="top",
+        ),
         height=520,
         title_font_size=16,
         xaxis=dict(title="", tickfont=dict(size=14)),
         yaxis=dict(title="", tickformat=",", tickfont=dict(size=14)),
+        margin=dict(b=40, t=70, l=40, r=20),
         uniformtext_minsize=8,
         uniformtext_mode="hide",
     )
@@ -910,10 +1075,10 @@ with T_CAR:
 
     st.markdown(
         f"""
-        <div style="background-color: #F5E6E4; border: 2px solid #8B1A2B; border-radius: 10px; padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 15px rgba(139,26,43,0.2);">
-            <div style="font-size: 4.5rem; margin-bottom: 10px; line-height: 1;">🚨</div>
-            <h3 style="color: #8B1A2B; margin-top: 0; font-size: 1.6rem; font-weight: 800;">ALERTA CRÍTICA</h3>
-            <p style="font-size: 1.15rem; color: #444; margin-bottom: 15px;">
+        <div class="alert-card">
+            <div class="alert-icon">🚨</div>
+            <h3 class="alert-title">ALERTA CRÍTICA</h3>
+            <p class="alert-text">
                 Se proyecta que <b>{len(df_alert)}</b> órganos jurisdiccionales alcanzarán un estado crítico de <b>sobrecarga procesal</b> para <b>Diciembre de 2026</b>.
             </p>
         </div>
@@ -1118,13 +1283,18 @@ with T_POB:
         height=460,
         title_font_size=16,
         xaxis_title="Jueces por cada 100 mil habitantes",
+        xaxis_title_font=dict(size=12),
         yaxis_title="",
-        margin=dict(l=10, r=40, t=45, b=10),
+        margin=dict(l=10, r=40, t=45, b=60),
     )
     fig_ind.update_yaxes(autorange="reversed")
     col_ind_graph, col_ind_note = st.columns([4, 1])
     with col_ind_graph:
         st.plotly_chart(fig_ind, width="stretch", theme=None)
+        st.markdown(
+            '<div class="xaxis-mobile-label">Jueces por 100 mil habitantes</div>',
+            unsafe_allow_html=True,
+        )
     with col_ind_note:
         st.markdown(
             """
@@ -1172,7 +1342,14 @@ with T_POB:
             template="custom_theme",
             height=fig3_height,
             title_font_size=16,
-            margin=dict(t=50, b=20, l=10, r=10),
+            legend=dict(
+                orientation="h",
+                y=-0.1,
+                x=0.5,
+                xanchor="center",
+                yanchor="top",
+            ),
+            margin=dict(t=50, b=80, l=10, r=10),
         )
         st.plotly_chart(fig3, width="stretch", theme=None)
     with col_d:
@@ -1364,9 +1541,9 @@ with T_RES:
         _dlon = max(ne[1] - sw[1], 0.06)
         _mid_lat_rad = math.radians((sw[0] + ne[0]) / 2)
         _geo_aspect = (_dlon * math.cos(_mid_lat_rad)) / _dlat
-        _est_map_w_px = 640
+        _est_map_w_px = 520
         map_row_h = int(_est_map_w_px / max(_geo_aspect, 0.35))
-        map_row_h = max(400, min(map_row_h, 880))
+        map_row_h = max(320, min(map_row_h, 680))
 
         # ── Mapa Plotly 100% offline (go.Choroplethmapbox + white-bg) ────────
         map_df = rp_filt[["Provincia", sel_var]].copy()
@@ -1425,14 +1602,16 @@ with T_RES:
                 text=hover_texts,
                 hoverinfo="text",
                 colorbar=dict(
-                    title=dict(text=sel_var_label, font=dict(size=14)),
-                    tickfont=dict(size=12),
-                    len=0.82,
-                    thickness=12,
-                    x=1.02,
+                    title=dict(text=sel_var_label, font=dict(size=12)),
+                    tickfont=dict(size=11),
+                    orientation="h",
+                    x=0.5,
                     xpad=2,
-                    yanchor="middle",
-                    y=0.5,
+                    xanchor="center",
+                    y=-0.18,
+                    yanchor="top",
+                    len=0.8,
+                    thickness=11,
                 ),
             )
         )
@@ -1485,22 +1664,21 @@ with T_RES:
                 fitbounds="locations",
                 visible=False,
                 bgcolor="rgba(242,232,217,0)",
-                domain=dict(x=[0.0, 0.91], y=[0.0, 1.0]),
+                domain=dict(x=[0,1], y=[0,1]),
             ),
             template="custom_theme",
             height=map_row_h,
-            autosize=False,
-            margin=dict(l=2, r=52, t=0, b=2, pad=0),
+            autosize=True,
+            margin=dict(l=2, r=20, t=0, b=2, pad=80),
             title=None,
             paper_bgcolor="rgba(242,232,217,0)",
         )
         # Título fuera del Figure: Plotly reserva mucho espacio vertical al `layout.title`
         st.markdown(
-            f'<p style="margin:0 0 4px 0; padding:0; font-size:1.05rem; font-weight:800; color:{ROJO};">'
-            f"Mapa: {sel_var_label} por provincia"
-            f"</p>",
+            f'<p class="map-title">Mapa: {sel_var_label} por provincia</p>',
             unsafe_allow_html=True,
         )
+        st.markdown('<div class="map-responsive-anchor"></div>', unsafe_allow_html=True)
         st.plotly_chart(
             fig_map,
             use_container_width=True,
@@ -2065,7 +2243,7 @@ with T_AUD:
 with T_PER:
     # ── Personal Jurisdiccional ──────────────────────────────────────────────
     st.markdown(
-        '<div class="section-title" style="font-size: 1.8rem;">Personal Jurisdiccional OOJJ por Régimen Laboral</div>',
+        '<div class="section-title personal-title">Personal Jurisdiccional OOJJ por Régimen Laboral</div>',
         unsafe_allow_html=True,
     )
 
@@ -2096,37 +2274,38 @@ with T_PER:
             textfont_size=16,
             marker=dict(line=dict(color="#FFFFFF", width=2)),
         )
-        fig_pers.update_layout(height=450, title_font_size=16, margin=dict(t=40, b=10))
+        fig_pers.update_layout(height=420, title_font_size=16, margin=dict(t=40, b=10))
+        st.markdown('<div class="pers-pie-anchor"></div>', unsafe_allow_html=True)
         st.plotly_chart(fig_pers, width="stretch", theme=None)
 
     with col_p2:
         st.markdown(
             f"""
-        <div style="display:flex; flex-direction:column; gap:20px; justify-content:center; height:100%; padding:10px;">
-            <div style="background:linear-gradient(135deg, {ROJO}, {ROJO2}); padding:25px; border-radius:18px; color:white; text-align:center; box-shadow:0 6px 20px rgba(123,26,26,0.3);">
-                <div style="margin:0; font-size:1.6rem; font-weight:600; opacity:0.9; text-transform:uppercase; letter-spacing:1px;">TOTAL PERSONAL JURISDICCIONAL</div>
-                <div style="margin:5px 0 0; font-size:6.5rem; font-weight:800; line-height:1;">{_total_pers:,}</div>
+        <div class="personal-wrap">
+            <div class="personal-total">
+                <div class="total-label">TOTAL PERSONAL JURISDICCIONAL</div>
+                <div class="total-value">{_total_pers:,}</div>
             </div>
-            <div style="display:flex; gap:15px; flex-wrap:wrap; justify-content:center;">
-                <div style="flex:1; min-width: 110px; background:white; padding:15px; border-radius:14px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.1); border-bottom:6px solid #F9A825;">
-                    <div style="margin:0; font-size:1rem; font-weight:600; color:#555;">728</div>
-                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#F9A825; line-height:1;">{_reg_vals.get('728', 0)}</div>
+            <div class="personal-cards">
+                <div class="personal-card" style="border-bottom:6px solid #F9A825;">
+                    <div class="card-label">728</div>
+                    <div class="card-value" style="color:#F9A825;">{_reg_vals.get('728', 0)}</div>
                 </div>
-                <div style="flex:1; min-width: 110px; background:white; padding:15px; border-radius:14px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.1); border-bottom:6px solid #E53935;">
-                    <div style="margin:0; font-size:1rem; font-weight:600; color:#555;">CAS</div>
-                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#E53935; line-height:1;">{_reg_vals.get('CAS', 0)}</div>
+                <div class="personal-card" style="border-bottom:6px solid #E53935;">
+                    <div class="card-label">CAS</div>
+                    <div class="card-value" style="color:#E53935;">{_reg_vals.get('CAS', 0)}</div>
                 </div>
-                <div style="flex:1; min-width: 110px; background:white; padding:15px; border-radius:14px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.1); border-bottom:6px solid #6A1B9A;">
-                    <div style="margin:0; font-size:1rem; font-weight:600; color:#555;">RECAS</div>
-                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#6A1B9A; line-height:1;">{_reg_vals.get('RECAS', 0)}</div>
+                <div class="personal-card" style="border-bottom:6px solid #6A1B9A;">
+                    <div class="card-label">RECAS</div>
+                    <div class="card-value" style="color:#6A1B9A;">{_reg_vals.get('RECAS', 0)}</div>
                 </div>
-                <div style="flex:1; min-width: 110px; background:white; padding:15px; border-radius:14px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.1); border-bottom:6px solid #1565C0;">
-                    <div style="margin:0; font-size:1rem; font-weight:600; color:#555;">LEY 29277</div>
-                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#1565C0; line-height:1;">{_reg_vals.get('LEY 29277', 0)}</div>
+                <div class="personal-card" style="border-bottom:6px solid #1565C0;">
+                    <div class="card-label">LEY 29277</div>
+                    <div class="card-value" style="color:#1565C0;">{_reg_vals.get('LEY 29277', 0)}</div>
                 </div>
-                <div style="flex:1; min-width: 110px; background:white; padding:15px; border-radius:14px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.1); border-bottom:6px solid #2E7D32;">
-                    <div style="margin:0; font-size:1rem; font-weight:600; color:#555;">276</div>
-                    <div style="margin:5px 0 0; font-size:2.5rem; font-weight:800; color:#2E7D32; line-height:1;">{_reg_vals.get('276', 0)}</div>
+                <div class="personal-card" style="border-bottom:6px solid #2E7D32;">
+                    <div class="card-label">276</div>
+                    <div class="card-value" style="color:#2E7D32;">{_reg_vals.get('276', 0)}</div>
                 </div>
             </div>
         </div>
