@@ -973,15 +973,15 @@ with c3:
     <div class="kpi-wrap">
       <div class="kpi-card kpi-split" style="display:flex; flex-direction:row; justify-content:space-around; align-items:center;">
         <div style="text-align:center;">
-          <div style="font-size:2.8rem; font-weight:800; color:{VERDE}; line-height:1;">47</div>
+          <div style="font-size:2.8rem; font-weight:800; color:{VERDE}; line-height:1;">45</div>
           <div style="font-size:1.1rem; font-weight:600; color:#555; margin-top:2px;">Titulares</div>
         </div>
         <div style="text-align:center;">
-          <div style="font-size:2.8rem; font-weight:800; color:{ROJO}; line-height:1;">51</div>
+          <div style="font-size:2.8rem; font-weight:800; color:{ROJO}; line-height:1;">50</div>
           <div style="font-size:1.1rem; font-weight:600; color:#555; margin-top:2px;">Supernumerarios</div>
         </div>
         <div style="text-align:center;">
-          <div style="font-size:2.8rem; font-weight:800; color:#e67e22; line-height:1;">23</div>
+          <div style="font-size:2.8rem; font-weight:800; color:#e67e22; line-height:1;">24</div>
           <div style="font-size:1.1rem; font-weight:600; color:#555; margin-top:2px;">Provisionales</div>
         </div>
       </div>
